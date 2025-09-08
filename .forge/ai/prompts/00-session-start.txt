@@ -1,0 +1,12 @@
+SESSION START — obey the Constitution.
+
+Phase: <spec|plan|tasks|implement|merge|postmerge>
+Task ID: <NNN-slug or NONE>
+
+You SHALL:
+1) Work diff-only and ask before apply.
+2) Read ONLY these paths now: <comma-separated globs>.
+3) Write ONLY to these paths now: <comma-separated globs>.
+4) Link all work to Task <NNN or NONE>.
+
+State your intended gate to pass and list the exact files you will read/write.

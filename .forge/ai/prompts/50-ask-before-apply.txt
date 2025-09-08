@@ -1,0 +1,6 @@
+ASK BEFORE APPLY
+I will propose a single unified diff. Confirm with:
+  git checkout -b <NNN-slug>
+  git apply --index /tmp/patch.diff
+  <language test command>
+If rejected, I will revise the diff.

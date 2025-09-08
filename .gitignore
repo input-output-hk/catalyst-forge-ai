@@ -1,0 +1,43 @@
+# FORGE System - Brainstorms are local only
+.forge/ai/brainstorms/**
+!.forge/ai/brainstorms/.gitkeep
+!.forge/ai/brainstorms/*/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Build artifacts
+/dist/
+/build/
+/target/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+/node_modules/
+/vendor/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+#/tmp/
+#*.tmp
+#*.temp
