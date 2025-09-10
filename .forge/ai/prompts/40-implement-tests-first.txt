@@ -1,9 +1,0 @@
-IMPLEMENT (TESTS FIRST)
-Inputs: ./tasks/NNN-slug/*
-
-Steps:
-1) Propose test diffs that FAIL first; ask to apply.
-2) After approval, propose implementation diffs to make tests pass.
-3) Update docs/PRD if public surface changed.
-
-Always generate unified diffs. Never touch brainstorms or CI secrets.

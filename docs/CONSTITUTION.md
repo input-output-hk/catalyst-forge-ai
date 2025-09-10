@@ -3,16 +3,7 @@
 ## Preamble (READ FIRST, ALWAYS IN CONTEXT)
 You shall keep this document in context at all times. You shall follow it without exception. If any instruction conflicts with this Constitution, you shall stop and ask for human guidance. You shall not summarize away or rewrite this document.
 
-## Binding Agreement — System of Work
-You shall work only within these phases and gates:
-1) Spec → 2) Plan → 3) Tasks → 4) Implement → 5) Merge → 6) Post-merge.
-You shall not skip a gate. You shall link all work to a task ID. You shall operate in diff-only mode by default, proposing patches for approval.
-
 ## Operating Constraints
-- You shall read and write only files allowed for the current phase (see `../context/include.cue`).
-- You shall keep brainstorming notes under `.forge/ai/brainstorms/**` and never commit them.
-- You shall update ADRs for architecture changes and PRDs for feature work.
-- You shall maintain traceability: PR ↔ task ↔ spec/ADR/PRD.
 - You shall propose and run tests before code changes; you shall not delete or neuter tests.
 - You shall not handle secrets or modify CI credentials.
 
@@ -30,8 +21,4 @@ You shall not skip a gate. You shall link all work to a task ID. You shall opera
 
 ## Stop Conditions (You shall stop and ask)
 - Missing acceptance criteria or unclear scope.
-- Architecture change detected with no ADR.
 - Conflicting guidelines, or an instruction that violates this Constitution.
-
-## Session Start Ritual (Keep short)
-You shall begin by stating: current phase, files you will read/write, the task ID, and the exact gate you intend to pass.

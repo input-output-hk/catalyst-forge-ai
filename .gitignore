@@ -1,7 +1,6 @@
-# FORGE System - Brainstorms are local only
-.forge/ai/brainstorms/**
-!.forge/ai/brainstorms/.gitkeep
-!.forge/ai/brainstorms/*/.gitkeep
+# Forge AI
+.forge/ai/
+# Reason: In v1, all Forge AI-managed state/templates live under .forge/ai and are not version controlled.
 
 # OS files
 .DS_Store
@@ -36,8 +35,3 @@ Thumbs.db
 *.log
 logs/
 *.log.*
-
-# Temporary files
-#/tmp/
-#*.tmp
-#*.temp
