@@ -79,6 +79,9 @@ func TestNewRepository_StaticAuth_Fallback(t *testing.T) {
 func TestNewRepository_CustomCredentialFunc(t *testing.T) {
 	ctx := context.Background()
 
+	// Clear any cached credentials to ensure test isolation
+	ClearAuthCache()
+
 	customCredFunc := func(ctx context.Context, registry string) (auth.Credential, error) {
 		if registry == "ghcr.io" {
 			return auth.Credential{Username: "customuser", Password: "custompass"}, nil
@@ -97,6 +100,10 @@ func TestNewRepository_CustomCredentialFunc(t *testing.T) {
 	// Test custom credential function
 	authClient, ok := repo.Client.(*auth.Client)
 	require.True(t, ok, "Client should be an auth.Client")
+
+	// Clear cache again to ensure we get fresh credentials from the function
+	ClearAuthCache()
+
 	cred, err := authClient.Credential(ctx, "ghcr.io")
 	require.NoError(t, err)
 	assert.Equal(t, "customuser", cred.Username)

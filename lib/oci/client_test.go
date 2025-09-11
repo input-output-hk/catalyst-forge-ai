@@ -160,6 +160,9 @@ func TestClient_Push_Validation(t *testing.T) {
 
 // TestClient_Push_BasicFunctionality tests basic push functionality
 func TestClient_Push_BasicFunctionality(t *testing.T) {
+	// Clear any cached credentials to ensure test isolation
+	oras.ClearAuthCache()
+
 	client, err := New()
 	require.NoError(t, err)
 
@@ -566,6 +569,9 @@ func TestClient_createRepository_WithStaticAuth(t *testing.T) {
 
 // TestClient_createRepository_WithCredentialFunc tests createRepository with custom credential function
 func TestClient_createRepository_WithCredentialFunc(t *testing.T) {
+	// Clear any cached credentials to ensure test isolation
+	oras.ClearAuthCache()
+
 	customFunc := func(ctx context.Context, registry string) (auth.Credential, error) {
 		if registry == "ghcr.io" {
 			return auth.Credential{Username: "customuser", Password: "custompass"}, nil
@@ -584,6 +590,10 @@ func TestClient_createRepository_WithCredentialFunc(t *testing.T) {
 	// Test custom credential function
 	authClient, ok := repo.Client.(*auth.Client)
 	require.True(t, ok, "Client should be an auth.Client")
+
+	// Clear cache again to ensure we get fresh credentials from the function
+	oras.ClearAuthCache()
+
 	cred, err := authClient.Credential(ctx, "ghcr.io")
 	require.NoError(t, err)
 	assert.Equal(t, "customuser", cred.Username)

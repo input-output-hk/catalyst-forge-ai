@@ -4,7 +4,6 @@ package oras
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,10 +71,15 @@ type AuthOptions struct {
 
 	// HTTPConfig controls HTTP vs HTTPS and certificate validation.
 	HTTPConfig *HTTPConfig
+
+	// Transport provides a custom HTTP transport with connection pooling.
+	// If nil, a default transport with connection pooling is used.
+	Transport http.RoundTripper
 }
 
 // NewRepository creates a new ORAS repository with authentication configured.
 // It sets up the default Docker credential chain and applies any auth overrides.
+// Uses connection pooling for improved performance across multiple operations.
 //
 // Parameters:
 //   - ctx: Context for the operation
@@ -108,43 +112,46 @@ func NewRepository(ctx context.Context, reference string, opts *AuthOptions) (*r
 	// Default: use ORAS's default Docker credential chain (config + helpers)
 	authClient := auth.DefaultClient
 
-	// Configure HTTP transport based on explicit HTTP configuration
+	// Use optimized transport with connection pooling
+	transport := newDefaultTransport(opts)
+
+	// Apply HTTP configuration (scheme and TLS settings)
 	if opts != nil && opts.HTTPConfig != nil && shouldApplyHTTPConfig(reference, opts.HTTPConfig) {
-		// Create HTTP transport with specified settings
-		transport := &http.Transport{}
-
-		// Configure TLS settings
-		if opts.HTTPConfig.AllowInsecure {
-			transport.TLSClientConfig = &tls.Config{
-				InsecureSkipVerify: true, // Allow self-signed certificates
-			}
-		}
-
 		// Use HTTP scheme if explicitly requested
 		if opts.HTTPConfig.AllowHTTP {
 			repo.PlainHTTP = true
 		}
-
-		// Set custom transport
-		if authClient.Client == nil {
-			authClient.Client = &http.Client{Transport: transport}
-		} else {
-			authClient.Client.Transport = transport
-		}
+		// Note: TLS settings are already handled in newDefaultTransport
 	}
 
-	// Apply auth overrides if provided
+	// Set the optimized transport
+	if authClient.Client == nil {
+		authClient.Client = &http.Client{Transport: transport}
+	} else {
+		authClient.Client.Transport = transport
+	}
+
+	// Apply auth overrides with caching if provided
 	if opts != nil {
 		if opts.CredentialFunc != nil {
 			// Custom credential function takes complete precedence
-			authClient.Credential = opts.CredentialFunc
+			// Wrap with caching for performance
+			authClient.Credential = newCachedCredentialFunc(opts.CredentialFunc)
 		} else if opts.StaticRegistry != "" && opts.StaticUsername != "" {
-			// Static auth override for specific registry
-			authClient.Credential = auth.StaticCredential(opts.StaticRegistry, auth.Credential{
+			// Static auth override for specific registry with caching
+			staticCred := auth.Credential{
 				Username: opts.StaticUsername,
 				Password: opts.StaticPassword,
-			})
+			}
+			authClient.Credential = newCachedCredentialFunc(
+				auth.StaticCredential(opts.StaticRegistry, staticCred))
+		} else {
+			// Use cached version of default credential chain
+			authClient.Credential = newCachedCredentialFunc(authClient.Credential)
 		}
+	} else {
+		// No auth options provided, still use caching for default credentials
+		authClient.Credential = newCachedCredentialFunc(authClient.Credential)
 	}
 
 	repo.Client = authClient
@@ -211,6 +218,9 @@ type PushDescriptor struct {
 //   - opts: Authentication options (can be nil for default behavior)
 //
 // Returns an error if the push operation fails.
+//
+// NOTE: Current implementation loads entire content into memory for digest calculation.
+// TODO: Optimize for streaming to maintain constant memory usage for large files.
 func Push(ctx context.Context, reference string, descriptor *PushDescriptor, opts *AuthOptions) error {
 	if descriptor == nil {
 		return fmt.Errorf("descriptor cannot be nil")

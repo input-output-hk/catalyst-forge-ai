@@ -267,11 +267,11 @@ These documents define the coding standards, testing approach, and design patter
 ## Documentation and Examples
 
 ### Task 15: Documentation
-- [ ] Write comprehensive godoc for all public APIs
-- [ ] Create example programs in `examples/`
-- [ ] Add security best practices guide
-- [ ] Document migration from other tools
-- [ ] Create troubleshooting guide
+- [x] Write comprehensive godoc for all public APIs
+- [x] Create example programs in `examples/`
+- [x] Add security best practices guide
+- [x] Document migration from other tools
+- [x] Create troubleshooting guide
 
 **Success Criteria:**
 - Every public type/method has godoc

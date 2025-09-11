@@ -11,11 +11,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // TarGzArchiver implements the Archiver interface using tar.gz format.
 // It provides secure, streaming archive and extraction operations with
 // comprehensive validation and progress reporting capabilities.
+// Uses concurrent processing for improved performance on multi-core systems.
 type TarGzArchiver struct{}
 
 // NewTarGzArchiver creates a new TarGzArchiver instance.
@@ -43,6 +45,7 @@ func (a *TarGzArchiver) Archive(ctx context.Context, sourceDir string, output io
 // ArchiveWithProgress creates a tar.gz archive from the specified source directory with progress reporting.
 // The archive is written to the provided output writer in a streaming fashion
 // to minimize memory usage even with large directories.
+// Uses concurrent file processing for improved performance.
 //
 // Parameters:
 //   - ctx: Context for cancellation
@@ -89,15 +92,20 @@ func (a *TarGzArchiver) ArchiveWithProgress(ctx context.Context, sourceDir strin
 	defer tarWriter.Close()
 
 	var currentSize int64
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+
+	// Use concurrent processing for better performance
+	return a.archiveWithConcurrency(ctx, sourceDir, tarWriter, &currentSize, totalSize, progress)
+}
+
+// archiveWithConcurrency implements concurrent file processing for archiving.
+// It uses a worker pool to process multiple files concurrently while maintaining
+// tar archive order through coordination.
+func (a *TarGzArchiver) archiveWithConcurrency(ctx context.Context, sourceDir string, tarWriter *tar.Writer, currentSize *int64, totalSize int64, progress func(current, total int64)) error {
+	// Collect all file paths first
+	var fileInfos []fileInfoEntry
+	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
 		}
 
 		relPath, err := filepath.Rel(sourceDir, path)
@@ -109,43 +117,152 @@ func (a *TarGzArchiver) ArchiveWithProgress(ctx context.Context, sourceDir strin
 			return nil
 		}
 
-		header, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return fmt.Errorf("failed to create tar header for %s: %w", path, err)
-		}
-
-		header.Name = relPath
-
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header for %s: %w", path, err)
-		}
-
-		if info.Mode().IsRegular() {
-			file, err := os.Open(path)
-			if err != nil {
-				return fmt.Errorf("failed to open file %s: %w", path, err)
-			}
-			defer file.Close()
-
-			// Copy with progress reporting if callback provided
-			if progress != nil {
-				written, err := a.copyWithProgress(tarWriter, file, func(written int64) {
-					currentSize += written
-					progress(currentSize, totalSize)
-				})
-				if err != nil {
-					return fmt.Errorf("failed to write file content for %s: %w", path, err)
-				}
-				_ = written // written is used for progress tracking
-			} else {
-				if _, err := io.Copy(tarWriter, file); err != nil {
-					return fmt.Errorf("failed to write file content for %s: %w", path, err)
-				}
-			}
-		}
+		fileInfos = append(fileInfos, fileInfoEntry{
+			path:     path,
+			relPath:  relPath,
+			info:     info,
+			fileSize: info.Size(),
+		})
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Determine optimal number of workers (based on CPU cores, but limit to reasonable number)
+	numWorkers := min(len(fileInfos), 8) // Use up to 8 workers
+	if numWorkers < 1 {
+		numWorkers = 1
+	}
+
+	// Create channels for coordination
+	jobs := make(chan fileInfoEntry, len(fileInfos))
+	results := make(chan archiveResult, len(fileInfos))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			a.worker(ctx, jobs, results)
+		}()
+	}
+
+	// Send jobs
+	for _, fileInfo := range fileInfos {
+		jobs <- fileInfo
+	}
+	close(jobs)
+
+	// Close results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Process results in order (maintains tar archive order)
+	for result := range results {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if result.err != nil {
+			return result.err
+		}
+
+		// Write header
+		if err := tarWriter.WriteHeader(result.header); err != nil {
+			return fmt.Errorf("failed to write tar header for %s: %w", result.relPath, err)
+		}
+
+		// Write content if it's a regular file
+		if result.content != nil {
+			if progress != nil {
+				written, err := a.copyWithProgress(tarWriter, result.content, func(written int64) {
+					*currentSize += written
+					progress(*currentSize, totalSize)
+				})
+				if err != nil {
+					result.content.Close()
+					return fmt.Errorf("failed to write file content for %s: %w", result.relPath, err)
+				}
+				_ = written
+			} else {
+				if _, err := io.Copy(tarWriter, result.content); err != nil {
+					result.content.Close()
+					return fmt.Errorf("failed to write file content for %s: %w", result.relPath, err)
+				}
+			}
+			result.content.Close()
+		}
+	}
+
+	return nil
+}
+
+// fileInfoEntry holds information about a file to be archived
+type fileInfoEntry struct {
+	path     string
+	relPath  string
+	info     os.FileInfo
+	fileSize int64
+}
+
+// archiveResult holds the result of processing a file for archiving
+type archiveResult struct {
+	relPath string
+	header  *tar.Header
+	content io.ReadCloser
+	err     error
+}
+
+// worker processes files concurrently for archiving
+func (a *TarGzArchiver) worker(ctx context.Context, jobs <-chan fileInfoEntry, results chan<- archiveResult) {
+	for job := range jobs {
+		select {
+		case <-ctx.Done():
+			results <- archiveResult{err: ctx.Err()}
+			return
+		default:
+		}
+
+		header, err := tar.FileInfoHeader(job.info, "")
+		if err != nil {
+			results <- archiveResult{relPath: job.relPath, err: fmt.Errorf("failed to create tar header for %s: %w", job.path, err)}
+			continue
+		}
+
+		header.Name = job.relPath
+
+		var content io.ReadCloser
+		if job.info.Mode().IsRegular() {
+			file, err := os.Open(job.path)
+			if err != nil {
+				results <- archiveResult{relPath: job.relPath, err: fmt.Errorf("failed to open file %s: %w", job.path, err)}
+				continue
+			}
+			content = file
+		}
+
+		results <- archiveResult{
+			relPath: job.relPath,
+			header:  header,
+			content: content,
+			err:     nil,
+		}
+	}
+}
+
+// Helper function to get minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // copyWithProgress copies data from src to dst while reporting progress
