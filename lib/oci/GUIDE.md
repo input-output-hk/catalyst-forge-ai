@@ -63,10 +63,8 @@ type ExtractOptions struct {
 ```go
 // Client provides OCI bundle operations
 type Client struct {
-    registry  RegistryClient  // Internal ORAS wrapper
-    archiver  Archiver       // Archive strategy
-    auth      Authenticator  // Auth provider
-    validator Validator      // Security validator
+    options   *ClientOptions // Configuration including auth
+    // ORAS authentication handled via functional options
 }
 
 // Push uploads a directory to an OCI registry
@@ -78,32 +76,38 @@ func (c *Client) Pull(ctx context.Context, reference, targetDir string, opts ...
 
 ### Authentication
 
-```go
-// Authenticator provides registry credentials
-type Authenticator interface {
-    // Credentials returns auth for a given registry
-    Credentials(ctx context.Context, registry string) (AuthConfig, error)
-}
+The module uses ORAS's native authentication system, eliminating the need for custom authentication interfaces. ORAS provides robust support for Docker's standard authentication mechanisms.
 
-// Built-in implementations:
-// - DockerConfigAuthenticator (reads ~/.docker/config.json)
-// - StaticAuthenticator (programmatic credentials)
-// - ChainAuthenticator (try multiple in sequence)
+```go
+// Authentication is handled by ORAS's auth.Client
+// Default: Uses Docker credential chain (config + helpers)
+// Override: Functional options for specific use cases
+
+client, err := ocibundle.NewWithOptions(
+    ocibundle.WithStaticAuth("ghcr.io", "user", "token"),  // Override for specific registry
+    // Other registries use Docker config/credential helpers automatically
+)
 ```
+
+Key benefits of ORAS native authentication:
+- **Docker Config Support**: Standard `~/.docker/config.json` format
+- **Credential Helpers**: `osxkeychain`, `pass`, `desktop`, `wincred`, etc.
+- **Token Management**: Automatic token refresh and OAuth2 flows
+- **Registry Compatibility**: Handles different auth endpoints and quirks
+- **Security**: Leverages battle-tested authentication code
 
 ## Public API Design
 
 ### Client Creation
 
 ```go
-// New creates a client with sensible defaults
+// New creates a client with sensible defaults (uses ORAS default auth)
 client, err := ocibundle.New()
 
 // NewWithOptions allows customization
 client, err := ocibundle.NewWithOptions(
-    ocibundle.WithArchiver(ocibundle.NewTarGzArchiver()),
-    ocibundle.WithAuth(ocibundle.DockerConfigAuth()),
-    ocibundle.WithArtifactType("application/vnd.myapp.bundle"),
+    ocibundle.WithStaticAuth("ghcr.io", "username", "token"),  // Auth override
+    // Other options for archivers, security, etc.
 )
 ```
 
@@ -139,19 +143,20 @@ err := client.Pull(ctx, "ghcr.io/org/bundle:v1.0.0", "./output",
 ### Programmatic Authentication
 
 ```go
-// Static credentials
+// Static credentials for specific registry
 client, _ := ocibundle.NewWithOptions(
-    ocibundle.WithAuth(ocibundle.StaticAuth(
-        "ghcr.io", "username", "password",
-    )),
+    ocibundle.WithStaticAuth("ghcr.io", "username", "password"),
+    // Other registries use Docker config/credential helpers
 )
 
-// Multiple auth sources
+import "oras.land/oras-go/v2/registry/remote/auth"
+
+// Custom credential function for advanced scenarios
 client, _ := ocibundle.NewWithOptions(
-    ocibundle.WithAuth(ocibundle.ChainAuth(
-        ocibundle.EnvAuth(),           // Check environment vars
-        ocibundle.DockerConfigAuth(),  // Fall back to Docker config
-    )),
+    ocibundle.WithCredentialFunc(func(ctx context.Context, registry string) (auth.Credential, error) {
+        // Custom credential logic
+        return auth.Credential{Username: "user", Password: "token"}, nil
+    }),
 )
 ```
 
