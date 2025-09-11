@@ -129,7 +129,7 @@ func createAdvancedSampleFiles() error {
 	// Create directory structure
 	for _, dir := range subDirs {
 		fullPath := filepath.Join(baseDir, dir)
-		if err := os.MkdirAll(fullPath, 0755); err != nil {
+		if err := os.MkdirAll(fullPath, 0o755); err != nil {
 			return fmt.Errorf("create directory %s: %w", fullPath, err)
 		}
 	}
@@ -139,12 +139,24 @@ func createAdvancedSampleFiles() error {
 		content string
 		mode    os.FileMode
 	}{
-		{"bundle-root/README.md", "# Advanced Bundle Example\n\nThis bundle demonstrates advanced features.", 0644},
-		{"bundle-root/config/app.yaml", "app:\n  name: advanced-bundle\n  version: 2.1.0\n  environment: production", 0644},
-		{"bundle-root/config/database.json", `{"host": "localhost", "port": 5432, "database": "myapp"}`, 0600},
-		{"bundle-root/bin/start.sh", "#!/bin/bash\necho 'Starting advanced application...'\n# Application startup logic here", 0755},
-		{"bundle-root/docs/API.md", "# API Documentation\n\n## Endpoints\n\n- GET /health\n- POST /data", 0644},
-		{"bundle-root/data/sample.txt", "This is sample data for the advanced bundle example.\nIt contains multiple lines of text.", 0644},
+		{"bundle-root/README.md", "# Advanced Bundle Example\n\nThis bundle demonstrates advanced features.", 0o644},
+		{
+			"bundle-root/config/app.yaml",
+			"app:\n  name: advanced-bundle\n  version: 2.1.0\n  environment: production",
+			0o644,
+		},
+		{"bundle-root/config/database.json", `{"host": "localhost", "port": 5432, "database": "myapp"}`, 0o600},
+		{
+			"bundle-root/bin/start.sh",
+			"#!/bin/bash\necho 'Starting advanced application...'\n# Application startup logic here",
+			0o755,
+		},
+		{"bundle-root/docs/API.md", "# API Documentation\n\n## Endpoints\n\n- GET /health\n- POST /data", 0o644},
+		{
+			"bundle-root/data/sample.txt",
+			"This is sample data for the advanced bundle example.\nIt contains multiple lines of text.",
+			0o644,
+		},
 	}
 
 	for _, file := range files {

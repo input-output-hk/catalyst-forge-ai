@@ -216,14 +216,31 @@ client, err := ocibundle.NewWithOptions(
 
 ## Security
 
-This module implements multiple security measures by default:
+- **Threats Addressed**:
+  - Path traversal and absolute path injection
+  - Symlink-based directory escape
+  - Zip/decompression bombs (file count and total size)
+  - Oversized individual files
+  - Dangerous permission bits (setuid/setgid)
 
-- **Path Traversal Protection**: Prevents `..` in paths and absolute paths
-- **Size Limits**: Configurable maximum file and archive sizes (default: 10,000 files, 1GB total, 100MB per file)
-- **File Count Limits**: Prevents zip bomb attacks
-- **Permission Sanitization**: Removes setuid/setgid bits
-- **Symlink Validation**: Prevents symlinks escaping the archive root
-- **Archive Corruption Detection**: Validates archive integrity
+- **Validators and Enforcement**:
+  - `internal/validate.PathTraversalValidator` rejects absolute paths, `..`, encoded traversal variants, and validates symlink targets against the extraction root.
+  - `SizeValidator` enforces per-file and total uncompressed size limits.
+  - `FileCountValidator` enforces file-count limits to prevent resource exhaustion.
+  - `PermissionSanitizer` rejects files with setuid/setgid bits and sanitizes permissions when writing.
+  - `ValidatorChain` composes validators and fails fast on the first violation.
+
+- **Safe Defaults**:
+  - `DefaultExtractOptions`: 10,000 files, 1GB total, 100MB per file, permissions sanitized, hidden files rejected.
+
+- **Testing & Verification**:
+  - Unit tests for each validator and extraction behavior.
+  - Fuzz tests for path validation and size validator to ensure robustness against arbitrary inputs.
+  - Malicious archive generators (OWASP inspired) validate that extraction blocks path traversal and symlink attacks.
+
+- **Credentials Handling**:
+  - Authentication is delegated to ORAS; the library never logs usernames, passwords, or tokens.
+  - Error messages avoid echoing sensitive values; only generic messages are returned (e.g., "static password required").
 
 
 ## Error Handling

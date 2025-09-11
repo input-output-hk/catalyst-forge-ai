@@ -12,7 +12,11 @@ func TestSentinelErrors(t *testing.T) {
 		t.Error("ErrAuthenticationFailed should not be nil")
 	}
 	if ErrAuthenticationFailed.Error() != "authentication failed" {
-		t.Errorf("ErrAuthenticationFailed message = %q, want %q", ErrAuthenticationFailed.Error(), "authentication failed")
+		t.Errorf(
+			"ErrAuthenticationFailed message = %q, want %q",
+			ErrAuthenticationFailed.Error(),
+			"authentication failed",
+		)
 	}
 
 	// Test that ErrRegistryUnreachable is defined
@@ -36,7 +40,11 @@ func TestSentinelErrors(t *testing.T) {
 		t.Error("ErrSecurityViolation should not be nil")
 	}
 	if ErrSecurityViolation.Error() != "security constraint violated" {
-		t.Errorf("ErrSecurityViolation message = %q, want %q", ErrSecurityViolation.Error(), "security constraint violated")
+		t.Errorf(
+			"ErrSecurityViolation message = %q, want %q",
+			ErrSecurityViolation.Error(),
+			"security constraint violated",
+		)
 	}
 
 	// Test that ErrArchiveCorrupted is defined
@@ -44,7 +52,11 @@ func TestSentinelErrors(t *testing.T) {
 		t.Error("ErrArchiveCorrupted should not be nil")
 	}
 	if ErrArchiveCorrupted.Error() != "archive corrupted or invalid" {
-		t.Errorf("ErrArchiveCorrupted message = %q, want %q", ErrArchiveCorrupted.Error(), "archive corrupted or invalid")
+		t.Errorf(
+			"ErrArchiveCorrupted message = %q, want %q",
+			ErrArchiveCorrupted.Error(),
+			"archive corrupted or invalid",
+		)
 	}
 }
 
@@ -95,7 +107,7 @@ func TestBundleErrorUnwrap(t *testing.T) {
 	}
 
 	unwrapped := err.Unwrap()
-	if unwrapped != underlyingErr {
+	if unwrapped != underlyingErr { //nolint:errorlint // Direct comparison needed for testing Unwrap method
 		t.Errorf("BundleError.Unwrap() = %v, want %v", unwrapped, underlyingErr)
 	}
 }
@@ -154,7 +166,7 @@ func TestNewBundleError(t *testing.T) {
 	if err.Reference != "ghcr.io/org/repo:v1.0.0" {
 		t.Errorf("NewBundleError.Reference = %q, want %q", err.Reference, "ghcr.io/org/repo:v1.0.0")
 	}
-	if err.Err != underlyingErr {
+	if err.Err != underlyingErr { //nolint:errorlint // Direct comparison needed for testing error field
 		t.Errorf("NewBundleError.Err = %v, want %v", err.Err, underlyingErr)
 	}
 }

@@ -52,10 +52,13 @@ func NewTestRegistry(ctx context.Context) (*TestRegistry, error) {
 		ExposedPorts: []string{"5000/tcp"},
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("5000/tcp"),
-			wait.ForHTTP("/v2/").WithPort("5000/tcp").WithAllowInsecure(true).WithStatusCodeMatcher(func(code int) bool {
-				// Many registries return 200, 401, or 403 for /v2/
-				return code == http.StatusOK || code == http.StatusUnauthorized || code == http.StatusForbidden
-			}),
+			wait.ForHTTP("/v2/").
+				WithPort("5000/tcp").
+				WithAllowInsecure(true).
+				WithStatusCodeMatcher(func(code int) bool {
+					// Many registries return 200, 401, or 403 for /v2/
+					return code == http.StatusOK || code == http.StatusUnauthorized || code == http.StatusForbidden
+				}),
 		),
 		// Keep Docker Distribution env; harmless for other images
 		Env: map[string]string{
@@ -75,13 +78,19 @@ func NewTestRegistry(ctx context.Context) (*TestRegistry, error) {
 
 	host, err := container.Host(ctx)
 	if err != nil {
-		container.Terminate(ctx) // cleanup on error
+		if terminateErr := container.Terminate(ctx); terminateErr != nil {
+			// Log cleanup error but don't fail the operation
+			fmt.Printf("Warning: failed to terminate container during cleanup: %v\n", terminateErr)
+		}
 		return nil, fmt.Errorf("failed to get container host: %w", err)
 	}
 
 	port, err := container.MappedPort(ctx, "5000")
 	if err != nil {
-		container.Terminate(ctx) // cleanup on error
+		if terminateErr := container.Terminate(ctx); terminateErr != nil {
+			// Log cleanup error but don't fail the operation
+			fmt.Printf("Warning: failed to terminate container during cleanup: %v\n", terminateErr)
+		}
 		return nil, fmt.Errorf("failed to get container port: %w", err)
 	}
 

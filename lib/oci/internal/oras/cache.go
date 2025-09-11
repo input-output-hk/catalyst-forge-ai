@@ -206,4 +206,3 @@ func newCachedCredentialFunc(baseFunc auth.CredentialFunc) auth.CredentialFunc {
 		return cred, nil
 	}
 }
-

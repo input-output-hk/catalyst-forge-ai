@@ -49,7 +49,12 @@ func (g *ArchiveGenerator) Close() error {
 //   - outputPath: Path where the tar.gz file will be created
 //
 // Returns the actual size of the generated archive and any error.
-func (g *ArchiveGenerator) GenerateTestArchive(ctx context.Context, size int64, fileCount int, pattern, outputPath string) (int64, error) {
+func (g *ArchiveGenerator) GenerateTestArchive(
+	ctx context.Context,
+	size int64,
+	fileCount int,
+	pattern, outputPath string,
+) (int64, error) {
 	// Create output file
 	file, err := os.Create(outputPath)
 	if err != nil {
@@ -97,7 +102,7 @@ func (g *ArchiveGenerator) GenerateTestArchive(ctx context.Context, size int64, 
 		header := &tar.Header{
 			Name:    fileName,
 			Size:    int64(len(content)),
-			Mode:    0644,
+			Mode:    0o644,
 			ModTime: time.Now(),
 		}
 
@@ -191,13 +196,22 @@ func (g *ArchiveGenerator) generateMixedContent(size int64) ([]byte, error) {
 //   - avgFileSize: Average file size in bytes
 //
 // Returns the total size of all created files.
-func (g *ArchiveGenerator) GenerateTestDirectory(baseDir string, depth, filesPerDir int, avgFileSize int64) (int64, error) {
+func (g *ArchiveGenerator) GenerateTestDirectory(
+	baseDir string,
+	depth, filesPerDir int,
+	avgFileSize int64,
+) (int64, error) {
 	return g.generateDirectoryRecursive(baseDir, depth, filesPerDir, avgFileSize, 0)
 }
 
 // generateDirectoryRecursive recursively generates directory structure.
-func (g *ArchiveGenerator) generateDirectoryRecursive(baseDir string, maxDepth, filesPerDir int, avgFileSize int64, currentDepth int) (int64, error) {
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+func (g *ArchiveGenerator) generateDirectoryRecursive(
+	baseDir string,
+	maxDepth, filesPerDir int,
+	avgFileSize int64,
+	currentDepth int,
+) (int64, error) {
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
 		return 0, fmt.Errorf("failed to create directory %s: %w", baseDir, err)
 	}
 
@@ -219,7 +233,7 @@ func (g *ArchiveGenerator) generateDirectoryRecursive(baseDir string, maxDepth, 
 			return totalSize, fmt.Errorf("failed to generate content for %s: %w", fileName, err)
 		}
 
-		if err := os.WriteFile(fileName, content, 0644); err != nil {
+		if err := os.WriteFile(fileName, content, 0o644); err != nil {
 			return totalSize, fmt.Errorf("failed to write file %s: %w", fileName, err)
 		}
 

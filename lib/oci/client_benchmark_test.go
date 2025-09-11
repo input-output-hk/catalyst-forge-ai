@@ -177,7 +177,7 @@ func BenchmarkArchiver_ConcurrentVsSequential(b *testing.B) {
 
 	// Count files to ensure we have enough for concurrency testing
 	var fileCount int
-	filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -185,7 +185,9 @@ func BenchmarkArchiver_ConcurrentVsSequential(b *testing.B) {
 			fileCount++
 		}
 		return nil
-	})
+	}); err != nil {
+		b.Fatalf("Failed to walk test directory: %v", err)
+	}
 
 	if fileCount < 10 {
 		b.Skip("Not enough files for meaningful concurrency benchmark")
@@ -492,9 +494,9 @@ func benchmarkArchiverExtractMemoryUsage(b *testing.B, size int64) {
 
 		// Create target directory
 		targetDir := filepath.Join(tempDir, "extract")
-		if err := os.MkdirAll(targetDir, 0755); err != nil {
+		if mkdirErr := os.MkdirAll(targetDir, 0o755); mkdirErr != nil {
 			archiveFile.Close()
-			b.Fatalf("Failed to create target dir: %v", err)
+			b.Fatalf("Failed to create target dir: %v", mkdirErr)
 		}
 
 		// Extract archive - this should stream data without loading everything into memory

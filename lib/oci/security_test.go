@@ -58,19 +58,20 @@ func TestSizeValidator(t *testing.T) {
 	}
 
 	// Test ValidateFile with file within limits
-	fileInfo := FileInfo{Name: "test.txt", Size: 500, Mode: 0644}
+	fileInfo := FileInfo{Name: "test.txt", Size: 500, Mode: 0o644}
 	err = validator.ValidateFile(fileInfo)
 	if err != nil {
 		t.Errorf("Expected file within limits to pass, got %v", err)
 	}
 
 	// Test ValidateFile with file exceeding limits
-	largeFileInfo := FileInfo{Name: "large.txt", Size: 1500, Mode: 0644}
+	largeFileInfo := FileInfo{Name: "large.txt", Size: 1500, Mode: 0o644}
 	err = validator.ValidateFile(largeFileInfo)
 	if err == nil {
 		t.Error("Expected large file to be rejected")
 	}
-	if bundleErr, ok := err.(*BundleError); ok {
+	var bundleErr *BundleError
+	if errors.As(err, &bundleErr) {
 		if bundleErr.Op != "validate" {
 			t.Errorf("Expected operation to be 'validate', got %q", bundleErr.Op)
 		}
@@ -95,9 +96,10 @@ func TestSizeValidator(t *testing.T) {
 	if err == nil {
 		t.Error("Expected large archive to be rejected")
 	}
-	if bundleErr, ok := err.(*BundleError); ok {
-		if bundleErr.Reference != "archive" {
-			t.Errorf("Expected reference to be 'archive', got %q", bundleErr.Reference)
+	var bundleErr2 *BundleError
+	if errors.As(err, &bundleErr2) {
+		if bundleErr2.Reference != "archive" {
+			t.Errorf("Expected reference to be 'archive', got %q", bundleErr2.Reference)
 		}
 	}
 }
@@ -108,7 +110,7 @@ func TestSizeValidatorDisabledLimits(t *testing.T) {
 	validator := NewSizeValidator(0, 0)
 
 	// Large file should pass when limit is disabled
-	largeFileInfo := FileInfo{Name: "large.txt", Size: 1000000, Mode: 0644}
+	largeFileInfo := FileInfo{Name: "large.txt", Size: 1000000, Mode: 0o644}
 	err := validator.ValidateFile(largeFileInfo)
 	if err != nil {
 		t.Errorf("Expected large file to pass when limit disabled, got %v", err)
@@ -137,7 +139,7 @@ func TestFileCountValidator(t *testing.T) {
 	}
 
 	// Test ValidateFile (should be no-op)
-	fileInfo := FileInfo{Name: "test.txt", Size: 500, Mode: 0644}
+	fileInfo := FileInfo{Name: "test.txt", Size: 500, Mode: 0o644}
 	err = validator.ValidateFile(fileInfo)
 	if err != nil {
 		t.Errorf("Expected ValidateFile to return nil, got %v", err)
@@ -156,7 +158,8 @@ func TestFileCountValidator(t *testing.T) {
 	if err == nil {
 		t.Error("Expected archive with too many files to be rejected")
 	}
-	if bundleErr, ok := err.(*BundleError); ok {
+	var bundleErr *BundleError
+	if errors.As(err, &bundleErr) {
 		if bundleErr.Reference != "archive" {
 			t.Errorf("Expected reference to be 'archive', got %q", bundleErr.Reference)
 		}
@@ -194,33 +197,34 @@ func TestPermissionSanitizer(t *testing.T) {
 	}
 
 	// Test file with normal permissions (should pass)
-	normalFileInfo := FileInfo{Name: "normal.txt", Size: 1000, Mode: 0644}
+	normalFileInfo := FileInfo{Name: "normal.txt", Size: 1000, Mode: 0o644}
 	err = validator.ValidateFile(normalFileInfo)
 	if err != nil {
 		t.Errorf("Expected normal file to pass, got %v", err)
 	}
 
 	// Test file with setuid bit (should fail)
-	setuidFileInfo := FileInfo{Name: "setuid.txt", Size: 1000, Mode: 04644} // 04000 + 0644
+	setuidFileInfo := FileInfo{Name: "setuid.txt", Size: 1000, Mode: 0o4644} // 04000 + 0644
 	err = validator.ValidateFile(setuidFileInfo)
 	if err == nil {
 		t.Error("Expected file with setuid bit to be rejected")
 	}
-	if bundleErr, ok := err.(*BundleError); ok {
+	var bundleErr *BundleError
+	if errors.As(err, &bundleErr) {
 		if bundleErr.Reference != "setuid.txt" {
 			t.Errorf("Expected reference to be 'setuid.txt', got %q", bundleErr.Reference)
 		}
 	}
 
 	// Test file with setgid bit (should fail)
-	setgidFileInfo := FileInfo{Name: "setgid.txt", Size: 1000, Mode: 02644} // 02000 + 0644
+	setgidFileInfo := FileInfo{Name: "setgid.txt", Size: 1000, Mode: 0o2644} // 02000 + 0644
 	err = validator.ValidateFile(setgidFileInfo)
 	if err == nil {
 		t.Error("Expected file with setgid bit to be rejected")
 	}
 
 	// Test file with both setuid and setgid bits (should fail)
-	bothFileInfo := FileInfo{Name: "both.txt", Size: 1000, Mode: 06644} // 06000 + 0644
+	bothFileInfo := FileInfo{Name: "both.txt", Size: 1000, Mode: 0o6644} // 06000 + 0644
 	err = validator.ValidateFile(bothFileInfo)
 	if err == nil {
 		t.Error("Expected file with both setuid and setgid bits to be rejected")
@@ -232,32 +236,32 @@ func TestPermissionSanitizerSanitizePermissions(t *testing.T) {
 	sanitizer := NewPermissionSanitizer()
 
 	// Test normal permissions (should remain unchanged)
-	normalMode := uint32(0644)
+	normalMode := uint32(0o644)
 	sanitized := sanitizer.SanitizePermissions(normalMode)
 	if sanitized != normalMode {
 		t.Errorf("Expected normal permissions to remain unchanged, got %o", sanitized)
 	}
 
 	// Test setuid bit removal
-	setuidMode := uint32(04644) // 04000 + 0644
+	setuidMode := uint32(0o4644) // 04000 + 0644
 	sanitized = sanitizer.SanitizePermissions(setuidMode)
-	expected := uint32(0644) // setuid bit removed
+	expected := uint32(0o644) // setuid bit removed
 	if sanitized != expected {
 		t.Errorf("Expected setuid bit to be removed, got %o, expected %o", sanitized, expected)
 	}
 
 	// Test setgid bit removal
-	setgidMode := uint32(02644) // 02000 + 0644
+	setgidMode := uint32(0o2644) // 02000 + 0644
 	sanitized = sanitizer.SanitizePermissions(setgidMode)
-	expected = uint32(0644) // setgid bit removed
+	expected = uint32(0o644) // setgid bit removed
 	if sanitized != expected {
 		t.Errorf("Expected setgid bit to be removed, got %o, expected %o", sanitized, expected)
 	}
 
 	// Test both bits removal
-	bothMode := uint32(06644) // 06000 + 0644
+	bothMode := uint32(0o6644) // 06000 + 0644
 	sanitized = sanitizer.SanitizePermissions(bothMode)
-	expected = uint32(0644) // both bits removed
+	expected = uint32(0o644) // both bits removed
 	if sanitized != expected {
 		t.Errorf("Expected both setuid and setgid bits to be removed, got %o, expected %o", sanitized, expected)
 	}
@@ -308,7 +312,7 @@ func TestValidatorChainExecutionOrder(t *testing.T) {
 
 	// Test ValidateFile - should fail on first validator that implements ValidateFile
 	chain = NewValidatorChain(failingFileValidator, sizeValidator)
-	fileInfo := FileInfo{Name: "test.txt", Size: 2000, Mode: 0644} // Size > 1000 limit
+	fileInfo := FileInfo{Name: "test.txt", Size: 2000, Mode: 0o644} // Size > 1000 limit
 	err = chain.ValidateFile(fileInfo)
 	if err == nil {
 		t.Error("Expected ValidateFile to fail on first validator")
@@ -339,7 +343,7 @@ func TestValidatorChainSuccess(t *testing.T) {
 	}
 
 	// Test successful file validation
-	fileInfo := FileInfo{Name: "valid.txt", Size: 1000, Mode: 0644}
+	fileInfo := FileInfo{Name: "valid.txt", Size: 1000, Mode: 0o644}
 	err = chain.ValidateFile(fileInfo)
 	if err != nil {
 		t.Errorf("Expected valid file to pass through chain, got %v", err)

@@ -5,20 +5,21 @@ package mocks
 
 import (
 	"context"
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 	"sync"
+
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 )
 
-// Ensure, that ORASClientMock does implement oras.ORASClient.
+// Ensure, that ClientMock does implement oras.Client.
 // If this is not the case, regenerate this file with moq.
-var _ oras.ORASClient = &ORASClientMock{}
+var _ oras.Client = &ClientMock{}
 
-// ORASClientMock is a mock implementation of oras.ORASClient.
+// ClientMock is a mock implementation of oras.Client.
 //
-//	func TestSomethingThatUsesORASClient(t *testing.T) {
+//	func TestSomethingThatUsesClient(t *testing.T) {
 //
-//		// make and configure a mocked oras.ORASClient
-//		mockedORASClient := &ORASClientMock{
+//		// make and configure a mocked oras.Client
+//		mockedClient := &ClientMock{
 //			PullFunc: func(ctx context.Context, reference string, opts *oras.AuthOptions) (*oras.PullDescriptor, error) {
 //				panic("mock out the Pull method")
 //			},
@@ -27,11 +28,11 @@ var _ oras.ORASClient = &ORASClientMock{}
 //			},
 //		}
 //
-//		// use mockedORASClient in code that requires oras.ORASClient
+//		// use mockedClient in code that requires oras.Client
 //		// and then make assertions.
 //
 //	}
-type ORASClientMock struct {
+type ClientMock struct {
 	// PullFunc mocks the Pull method.
 	PullFunc func(ctx context.Context, reference string, opts *oras.AuthOptions) (*oras.PullDescriptor, error)
 
@@ -66,9 +67,9 @@ type ORASClientMock struct {
 }
 
 // Pull calls PullFunc.
-func (mock *ORASClientMock) Pull(ctx context.Context, reference string, opts *oras.AuthOptions) (*oras.PullDescriptor, error) {
+func (mock *ClientMock) Pull(ctx context.Context, reference string, opts *oras.AuthOptions) (*oras.PullDescriptor, error) {
 	if mock.PullFunc == nil {
-		panic("ORASClientMock.PullFunc: method is nil but ORASClient.Pull was just called")
+		panic("ClientMock.PullFunc: method is nil but Client.Pull was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
@@ -88,8 +89,8 @@ func (mock *ORASClientMock) Pull(ctx context.Context, reference string, opts *or
 // PullCalls gets all the calls that were made to Pull.
 // Check the length with:
 //
-//	len(mockedORASClient.PullCalls())
-func (mock *ORASClientMock) PullCalls() []struct {
+//	len(mockedClient.PullCalls())
+func (mock *ClientMock) PullCalls() []struct {
 	Ctx       context.Context
 	Reference string
 	Opts      *oras.AuthOptions
@@ -106,9 +107,9 @@ func (mock *ORASClientMock) PullCalls() []struct {
 }
 
 // Push calls PushFunc.
-func (mock *ORASClientMock) Push(ctx context.Context, reference string, descriptor *oras.PushDescriptor, opts *oras.AuthOptions) error {
+func (mock *ClientMock) Push(ctx context.Context, reference string, descriptor *oras.PushDescriptor, opts *oras.AuthOptions) error {
 	if mock.PushFunc == nil {
-		panic("ORASClientMock.PushFunc: method is nil but ORASClient.Push was just called")
+		panic("ClientMock.PushFunc: method is nil but Client.Push was just called")
 	}
 	callInfo := struct {
 		Ctx        context.Context
@@ -130,8 +131,8 @@ func (mock *ORASClientMock) Push(ctx context.Context, reference string, descript
 // PushCalls gets all the calls that were made to Push.
 // Check the length with:
 //
-//	len(mockedORASClient.PushCalls())
-func (mock *ORASClientMock) PushCalls() []struct {
+//	len(mockedClient.PushCalls())
+func (mock *ClientMock) PushCalls() []struct {
 	Ctx        context.Context
 	Reference  string
 	Descriptor *oras.PushDescriptor

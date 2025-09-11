@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry/remote/auth"
+
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras/mocks"
 )
 
 // TestNewClient tests creating a client with default options
@@ -171,7 +172,7 @@ func TestClient_Push_BasicFunctionality(t *testing.T) {
 
 	// Create a test file in the source directory
 	testFile := filepath.Join(sourceDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o644)
 	require.NoError(t, err)
 
 	// This should attempt to push to registry (will fail due to auth)
@@ -192,7 +193,7 @@ func TestClient_Push_WithOptions(t *testing.T) {
 
 	// Create a test file in the source directory
 	testFile := filepath.Join(sourceDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o644)
 	require.NoError(t, err)
 
 	// Test with annotations
@@ -239,7 +240,7 @@ func TestClient_Push_ErrorHandling(t *testing.T) {
 
 	t.Run("invalid reference", func(t *testing.T) {
 		sourceDir := t.TempDir()
-		err = os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("content"), 0644)
+		err = os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("content"), 0o644)
 		require.NoError(t, err)
 
 		err = client.Push(ctx, sourceDir, "invalid-reference")
@@ -264,7 +265,7 @@ func TestClient_Push_ProgressReporting(t *testing.T) {
 		for j := range content {
 			content[j] = byte(i + j)
 		}
-		err = os.WriteFile(testFile, content, 0644)
+		err = os.WriteFile(testFile, content, 0o644)
 		require.NoError(t, err)
 	}
 
@@ -290,7 +291,7 @@ func TestClient_Push_OptionsValidation(t *testing.T) {
 
 	// Create a test file
 	testFile := filepath.Join(sourceDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o644)
 	require.NoError(t, err)
 
 	t.Run("empty annotations", func(t *testing.T) {
@@ -369,7 +370,7 @@ func TestClient_Push_RetryLogic(t *testing.T) {
 	sourceDir := t.TempDir()
 
 	// Create test files
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("retry test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("retry test"), 0o644))
 
 	// Test with custom retry settings
 	err = client.Push(ctx, sourceDir, "ghcr.io/test/repo:tag",
@@ -431,7 +432,7 @@ func TestClient_Pull_AtomicExtraction(t *testing.T) {
 	t.Run("non-empty target directory", func(t *testing.T) {
 		targetDir := t.TempDir()
 		// Create a file in the target directory
-		require.NoError(t, os.WriteFile(filepath.Join(targetDir, "existing.txt"), []byte("existing"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(targetDir, "existing.txt"), []byte("existing"), 0o644))
 
 		err = client.Pull(ctx, "ghcr.io/test/repo:tag", targetDir)
 		assert.Error(t, err)
@@ -608,7 +609,7 @@ func TestClient_Pull_WithMockORASClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a mock ORAS client using the generated mock
-	mockORAS := &mocks.ORASClientMock{
+	mockORAS := &mocks.ClientMock{
 		PullFunc: func(ctx context.Context, reference string, opts *oras.AuthOptions) (*oras.PullDescriptor, error) {
 			// Return mock tar.gz data instead of making network calls
 			return &oras.PullDescriptor{
@@ -639,7 +640,7 @@ func TestClient_Pull_WithMockORASClient(t *testing.T) {
 // TestClient_Push_WithMockORASClient demonstrates unit testing push with mocked ORAS client
 func TestClient_Push_WithMockORASClient(t *testing.T) {
 	// Create a mock ORAS client that simulates successful push
-	mockORAS := &mocks.ORASClientMock{
+	mockORAS := &mocks.ClientMock{
 		PushFunc: func(ctx context.Context, reference string, descriptor *oras.PushDescriptor, opts *oras.AuthOptions) error {
 			// Simulate successful push without network calls
 			return nil
@@ -655,7 +656,7 @@ func TestClient_Push_WithMockORASClient(t *testing.T) {
 
 	// Create test file
 	testFile := filepath.Join(sourceDir, "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0o644))
 
 	// This should work without network calls
 	err = client.Push(ctx, sourceDir, "example.com/test/repo:tag")
@@ -665,7 +666,7 @@ func TestClient_Push_WithMockORASClient(t *testing.T) {
 // TestClient_Pull_WithMockError demonstrates testing error scenarios
 func TestClient_Pull_WithMockError(t *testing.T) {
 	// Create a mock ORAS client that simulates an error
-	mockORAS := &mocks.ORASClientMock{
+	mockORAS := &mocks.ClientMock{
 		PullFunc: func(ctx context.Context, reference string, opts *oras.AuthOptions) (*oras.PullDescriptor, error) {
 			return nil, fmt.Errorf("simulated network error")
 		},
@@ -694,7 +695,7 @@ func createMockTarGzData() ([]byte, error) {
 	testContent := "Hello, World!"
 	header := &tar.Header{
 		Name: "test.txt",
-		Mode: 0644,
+		Mode: 0o644,
 		Size: int64(len(testContent)),
 	}
 

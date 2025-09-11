@@ -6,8 +6,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 	"oras.land/oras-go/v2/registry/remote/auth"
+
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 )
 
 // ClientOptions contains configuration options for the Client.
@@ -17,7 +18,7 @@ type ClientOptions struct {
 
 	// ORASClient allows injecting a custom ORAS client for testing
 	// If nil, the default ORAS client will be used
-	ORASClient oras.ORASClient
+	ORASClient oras.Client
 
 	// HTTPConfig controls HTTP vs HTTPS and certificate validation
 	HTTPConfig *HTTPConfig
@@ -55,7 +56,7 @@ func WithAuthNone() ClientOption {
 
 // WithORASClient configures the client to use a custom ORAS client.
 // This is primarily used for testing to inject mock implementations.
-func WithORASClient(client oras.ORASClient) ClientOption {
+func WithORASClient(client oras.Client) ClientOption {
 	return func(opts *ClientOptions) {
 		opts.ORASClient = client
 	}

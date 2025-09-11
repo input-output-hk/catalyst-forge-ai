@@ -22,7 +22,12 @@ type Archiver interface {
 	// The output parameter is where the archive data is written.
 	// The progress callback is called periodically during archiving.
 	// Returns an error if the archiving process fails.
-	ArchiveWithProgress(ctx context.Context, sourceDir string, output io.Writer, progress func(current, total int64)) error
+	ArchiveWithProgress(
+		ctx context.Context,
+		sourceDir string,
+		output io.Writer,
+		progress func(current, total int64),
+	) error
 
 	// Extract expands an archive to a directory.
 	// The input parameter provides the archive data to read.

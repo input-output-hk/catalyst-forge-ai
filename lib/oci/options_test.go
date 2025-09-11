@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry/remote/auth"
+
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 )
 
 // TestClientOptionsStruct tests the ClientOptions struct

@@ -9,8 +9,9 @@ import (
 	"os"
 	"time"
 
-	ocibundle "github.com/input-output-hk/catalyst-forge-ai/lib/oci"
 	"oras.land/oras-go/v2/registry/remote/auth"
+
+	ocibundle "github.com/input-output-hk/catalyst-forge-ai/lib/oci"
 )
 
 func main() {
@@ -133,7 +134,7 @@ func demonstratePush(client *ocibundle.Client, ctx context.Context, sourceDir, r
 // createSampleFiles creates sample files for the authentication demonstration
 func createSampleFiles() error {
 	dir := "./sample-files"
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
@@ -147,7 +148,7 @@ func createSampleFiles() error {
 
 	for _, file := range files {
 		path := fmt.Sprintf("%s/%s", dir, file.name)
-		if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(file.content), 0o644); err != nil {
 			return fmt.Errorf("write file %s: %w", file.name, err)
 		}
 	}

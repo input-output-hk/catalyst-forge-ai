@@ -150,7 +150,7 @@ func (v *PermissionSanitizer) ValidatePath(path string) error {
 // It removes setuid and setgid bits to prevent privilege escalation.
 func (v *PermissionSanitizer) ValidateFile(info FileInfo) error {
 	// Check for setuid bit (04000)
-	if info.Mode&04000 != 0 {
+	if info.Mode&0o4000 != 0 {
 		return &BundleError{
 			Op:        "validate",
 			Reference: info.Name,
@@ -159,7 +159,7 @@ func (v *PermissionSanitizer) ValidateFile(info FileInfo) error {
 	}
 
 	// Check for setgid bit (02000)
-	if info.Mode&02000 != 0 {
+	if info.Mode&0o2000 != 0 {
 		return &BundleError{
 			Op:        "validate",
 			Reference: info.Name,
@@ -179,7 +179,7 @@ func (v *PermissionSanitizer) ValidateArchive(stats ArchiveStats) error {
 // This is a utility function that can be used during extraction.
 func (v *PermissionSanitizer) SanitizePermissions(mode uint32) uint32 {
 	// Remove setuid and setgid bits
-	return mode &^ 04000 &^ 02000
+	return mode &^ 0o4000 &^ 0o2000
 }
 
 // ValidatorChain combines multiple validators and executes them in sequence.

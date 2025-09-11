@@ -285,11 +285,11 @@ These documents define the coding standards, testing approach, and design patter
 ## Performance and Optimization
 
 ### Task 16: Performance Optimization
-- [ ] Profile memory usage during operations
-- [ ] Optimize streaming for large files
-- [ ] Add concurrent file processing where safe
-- [ ] Implement connection pooling for registry
-- [ ] Add caching for registry authentication
+- [x] Profile memory usage during operations
+- [x] Optimize streaming for large files
+- [x] Add concurrent file processing where safe
+- [x] Implement connection pooling for registry
+- [x] Add caching for registry authentication
 
 **Success Criteria:**
 - Memory usage constant for any file size
@@ -303,11 +303,11 @@ These documents define the coding standards, testing approach, and design patter
 ## Final Validation
 
 ### Task 17: Security Audit
-- [ ] Run static analysis (gosec, staticcheck)
-- [ ] Perform fuzzing on validators
-- [ ] Test with OWASP archive attacks
-- [ ] Verify no credential leakage
-- [ ] Document security model
+- [x] Run static golangci-lint
+- [x] Perform fuzzing on validators
+- [x] Test with OWASP archive attacks
+- [x] Verify no credential leakage
+- [x] Document security model
 
 **Success Criteria:**
 - Zero security warnings from tools

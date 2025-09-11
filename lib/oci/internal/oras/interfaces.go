@@ -4,10 +4,10 @@ package oras
 
 import "context"
 
-//go:generate go run github.com/matryer/moq@latest -pkg mocks -out mocks/oras_client.go . ORASClient
+//go:generate go run github.com/matryer/moq@latest -pkg mocks -out mocks/oras_client.go . Client
 
-// ORASClient defines the interface for ORAS operations that can be mocked for testing.
-type ORASClient interface {
+// Client defines the interface for ORAS operations that can be mocked for testing.
+type Client interface {
 	// Push pushes an artifact to an OCI registry.
 	Push(ctx context.Context, reference string, descriptor *PushDescriptor, opts *AuthOptions) error
 

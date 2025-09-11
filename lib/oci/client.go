@@ -14,8 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 	"oras.land/oras-go/v2/registry/remote"
+
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/oras"
 )
 
 // Client provides OCI bundle operations using ORAS for registry communication.
@@ -25,7 +26,7 @@ type Client struct {
 	options *ClientOptions
 
 	// orasClient provides ORAS operations (injected for testability)
-	orasClient oras.ORASClient
+	orasClient oras.Client
 
 	// mu protects concurrent access to client operations
 	mu sync.RWMutex
@@ -170,7 +171,8 @@ func retryOperation(ctx context.Context, maxRetries int, delay time.Duration, op
 // isRetryableError determines if an error should trigger a retry
 func isRetryableError(err error) bool {
 	// Network errors
-	if _, ok := err.(net.Error); ok {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
 		return true
 	}
 
@@ -242,7 +244,7 @@ func (c *Client) Push(ctx context.Context, sourceDir, reference string, opts ...
 	tempFilePath := tempFile.Name()
 
 	// Ensure cleanup happens in all error paths
-	var cleanupNeeded bool = true
+	cleanupNeeded := true
 	defer func() {
 		if cleanupNeeded {
 			tempFile.Close()
@@ -264,8 +266,8 @@ func (c *Client) Push(ctx context.Context, sourceDir, reference string, opts ...
 	}
 
 	// Close the file so we can read it for pushing
-	if err := tempFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temporary file: %w", err)
+	if closeErr := tempFile.Close(); closeErr != nil {
+		return fmt.Errorf("failed to close temporary file: %w", closeErr)
 	}
 
 	// Reopen for reading
@@ -342,17 +344,17 @@ func (c *Client) Pull(ctx context.Context, reference, targetDir string, opts ...
 	}
 
 	// Check if target directory exists and is empty (for atomic extraction)
-	if _, err := os.Stat(targetDir); err == nil {
+	if _, statErr := os.Stat(targetDir); statErr == nil {
 		// Directory exists, check if it's empty
-		entries, err := os.ReadDir(targetDir)
-		if err != nil {
-			return fmt.Errorf("failed to read target directory: %w", err)
+		entries, readErr := os.ReadDir(targetDir)
+		if readErr != nil {
+			return fmt.Errorf("failed to read target directory: %w", readErr)
 		}
 		if len(entries) > 0 {
 			return fmt.Errorf("target directory is not empty: %s", targetDir)
 		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check target directory: %w", err)
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("failed to check target directory: %w", statErr)
 	}
 
 	// Create authenticated repository (needed for future authentication validation)
@@ -396,7 +398,13 @@ func (c *Client) Pull(ctx context.Context, reference, targetDir string, opts ...
 }
 
 // extractAtomically performs atomic extraction with rollback on failure
-func (c *Client) extractAtomically(ctx context.Context, archiver *TarGzArchiver, data io.Reader, targetDir string, opts ExtractOptions) error {
+func (c *Client) extractAtomically(
+	ctx context.Context,
+	archiver *TarGzArchiver,
+	data io.Reader,
+	targetDir string,
+	opts ExtractOptions,
+) error {
 	// Create a temporary directory for extraction
 	tempDir, err := os.MkdirTemp("", "ocibundle-pull-")
 	if err != nil {
@@ -410,7 +418,7 @@ func (c *Client) extractAtomically(ctx context.Context, archiver *TarGzArchiver,
 	}
 
 	// Ensure target directory exists
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
@@ -448,13 +456,12 @@ func (c *Client) moveFiles(srcDir, dstDir string) error {
 		if info.IsDir() {
 			// Create directory
 			return os.MkdirAll(dstPath, info.Mode())
-		} else {
-			// Move file
-			if err := os.Rename(path, dstPath); err != nil {
-				return err
-			}
-			// Restore original permissions
-			return os.Chmod(dstPath, info.Mode())
 		}
+		// Move file
+		if err := os.Rename(path, dstPath); err != nil {
+			return err
+		}
+		// Restore original permissions
+		return os.Chmod(dstPath, info.Mode())
 	})
 }

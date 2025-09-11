@@ -19,8 +19,8 @@ func TestRegistryLifecycle(t *testing.T) {
 	registry, err := NewTestRegistry(ctx)
 	require.NoError(t, err, "Failed to create test registry")
 	defer func() {
-		err := registry.Close(ctx)
-		assert.NoError(t, err, "Failed to close registry")
+		closeErr := registry.Close(ctx)
+		assert.NoError(t, closeErr, "Failed to close registry")
 	}()
 
 	// Verify registry reference is properly formatted

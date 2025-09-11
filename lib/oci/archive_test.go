@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/rand"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,11 +46,19 @@ func TestDefaultExtractOptions(t *testing.T) {
 	}
 
 	if DefaultExtractOptions.MaxFileSize != expectedMaxFileSize {
-		t.Errorf("DefaultExtractOptions.MaxFileSize = %d, want %d", DefaultExtractOptions.MaxFileSize, expectedMaxFileSize)
+		t.Errorf(
+			"DefaultExtractOptions.MaxFileSize = %d, want %d",
+			DefaultExtractOptions.MaxFileSize,
+			expectedMaxFileSize,
+		)
 	}
 
 	if DefaultExtractOptions.PreservePerms != expectedPreservePerms {
-		t.Errorf("DefaultExtractOptions.PreservePerms = %t, want %t", DefaultExtractOptions.PreservePerms, expectedPreservePerms)
+		t.Errorf(
+			"DefaultExtractOptions.PreservePerms = %t, want %t",
+			DefaultExtractOptions.PreservePerms,
+			expectedPreservePerms,
+		)
 	}
 
 	if DefaultExtractOptions.StripPrefix != "" {
@@ -63,10 +72,10 @@ func TestTarGzArchiver_BasicArchive(t *testing.T) {
 	sourceDir := filepath.Join(tempDir, "source")
 
 	// Create test files
-	require.NoError(t, os.MkdirAll(sourceDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("Hello World"), 0644))
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "subdir"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "subdir", "nested.txt"), []byte("Nested content"), 0644))
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("Hello World"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "subdir", "nested.txt"), []byte("Nested content"), 0o644))
 
 	archiver := NewTarGzArchiver()
 	var buf bytes.Buffer
@@ -83,9 +92,9 @@ func TestTarGzArchiver_BasicExtract(t *testing.T) {
 	targetDir := filepath.Join(tempDir, "target")
 
 	// Create test files to archive
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "subdir"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("Hello World"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "subdir", "nested.txt"), []byte("Nested content"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("Hello World"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "subdir", "nested.txt"), []byte("Nested content"), 0o644))
 
 	// Archive the files
 	archiver := NewTarGzArchiver()
@@ -114,8 +123,8 @@ func TestTarGzArchiver_DebugRoundTrip(t *testing.T) {
 	intermediateDir := filepath.Join(tempDir, "intermediate")
 
 	// Create simple test file
-	require.NoError(t, os.MkdirAll(sourceDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("Hello World"), 0644))
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("Hello World"), 0o644))
 
 	archiver := NewTarGzArchiver()
 
@@ -137,8 +146,8 @@ func TestTarGzArchiver_DebugRoundTrip(t *testing.T) {
 	for _, entry := range entries {
 		t.Logf("  - %s (dir: %v)", entry.Name(), entry.IsDir())
 		if !entry.IsDir() {
-			content, err := os.ReadFile(filepath.Join(intermediateDir, entry.Name()))
-			if err == nil {
+			content, readErr := os.ReadFile(filepath.Join(intermediateDir, entry.Name()))
+			if readErr == nil {
 				t.Logf("    content: %q", string(content))
 			}
 		}
@@ -159,8 +168,8 @@ func TestTarGzArchiver_RoundTrip(t *testing.T) {
 	intermediateDir := filepath.Join(tempDir, "intermediate")
 
 	// Create complex test structure
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "dir1", "subdir"), 0755))
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "dir2"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "dir1", "subdir"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "dir2"), 0o755))
 
 	testFiles := map[string]string{
 		"root.txt":              "Root file content",
@@ -173,8 +182,8 @@ func TestTarGzArchiver_RoundTrip(t *testing.T) {
 
 	for path, content := range testFiles {
 		fullPath := filepath.Join(sourceDir, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
-		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0644))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))
+		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o644))
 	}
 
 	archiver := NewTarGzArchiver()
@@ -252,12 +261,12 @@ func TestTarGzArchiver_WithSecurityValidators(t *testing.T) {
 	sourceDir := filepath.Join(tempDir, "source")
 
 	// Create a file with path traversal in the name (this will be caught during extraction)
-	require.NoError(t, os.MkdirAll(sourceDir, 0755))
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
 
 	// Create a file with .. in the name within the source directory
 	// This simulates a malicious archive that contains path traversal
 	evilPath := filepath.Join(sourceDir, "evil.txt")
-	require.NoError(t, os.WriteFile(evilPath, []byte("evil"), 0644))
+	require.NoError(t, os.WriteFile(evilPath, []byte("evil"), 0o644))
 
 	archiver := NewTarGzArchiver()
 	var buf bytes.Buffer
@@ -291,7 +300,7 @@ func createMaliciousArchive(t *testing.T, output io.Writer) {
 	// Create a header with path traversal
 	header := &tar.Header{
 		Name: "../evil.txt",
-		Mode: 0644,
+		Mode: 0o644,
 		Size: int64(len("evil content")),
 	}
 
@@ -320,8 +329,8 @@ func TestTarGzArchiver_LargeFile(t *testing.T) {
 		largeData[i] = byte(i % 256)
 	}
 
-	require.NoError(t, os.MkdirAll(sourceDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "large.dat"), largeData, 0644))
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "large.dat"), largeData, 0o644))
 
 	archiver := NewTarGzArchiver()
 
@@ -347,8 +356,8 @@ func TestTarGzArchiver_EmptyDirectory(t *testing.T) {
 	sourceDir := filepath.Join(tempDir, "source")
 
 	// Create empty directory structure
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "empty1", "nested"), 0755))
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "empty2"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "empty1", "nested"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "empty2"), 0o755))
 
 	archiver := NewTarGzArchiver()
 	var buf bytes.Buffer
@@ -392,7 +401,7 @@ func TestTarGzArchiver_ErrorHandling(t *testing.T) {
 
 	var archiveBuf bytes.Buffer
 	// Create a minimal archive
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("test"), 0o644))
 	require.NoError(t, archiver.Archive(context.Background(), tempDir, &archiveBuf))
 
 	err = archiver.Extract(context.Background(), &archiveBuf, nonExistentTarget, DefaultExtractOptions)
@@ -412,9 +421,12 @@ func TestTarGzArchiver_Compatibility(t *testing.T) {
 	sourceDir := filepath.Join(tempDir, "source")
 
 	// Create test files with various content
-	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "subdir"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "hello.txt"), []byte("Hello World"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "subdir", "nested.txt"), []byte("Nested file content"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "hello.txt"), []byte("Hello World"), 0o644))
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(sourceDir, "subdir", "nested.txt"), []byte("Nested file content"), 0o644),
+	)
 
 	archiver := NewTarGzArchiver()
 	var archiveBuf bytes.Buffer
@@ -435,7 +447,7 @@ func TestTarGzArchiver_Compatibility(t *testing.T) {
 
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -480,8 +492,8 @@ func TestTarGzArchiver_SecurityLimits(t *testing.T) {
 	require.NoError(t, err)
 
 	sourceDir := filepath.Join(tempDir, "source")
-	require.NoError(t, os.MkdirAll(sourceDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "large.dat"), largeData, 0644))
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "large.dat"), largeData, 0o644))
 
 	archiver := NewTarGzArchiver()
 	var buf bytes.Buffer
@@ -510,7 +522,12 @@ func (m *mockArchiver) Archive(ctx context.Context, sourceDir string, output io.
 	return nil
 }
 
-func (m *mockArchiver) ArchiveWithProgress(ctx context.Context, sourceDir string, output io.Writer, progress func(current, total int64)) error {
+func (m *mockArchiver) ArchiveWithProgress(
+	ctx context.Context,
+	sourceDir string,
+	output io.Writer,
+	progress func(current, total int64),
+) error {
 	return nil
 }
 
@@ -520,12 +537,4 @@ func (m *mockArchiver) Extract(ctx context.Context, input io.Reader, targetDir s
 
 func (m *mockArchiver) MediaType() string {
 	return "application/octet-stream"
-}
-
-// Helper function to get absolute value of int
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }

@@ -6,12 +6,15 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	validatepkg "github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/validate"
 )
 
 // TarGzArchiver implements the Archiver interface using tar.gz format.
@@ -55,7 +58,12 @@ func (a *TarGzArchiver) Archive(ctx context.Context, sourceDir string, output io
 //
 // Returns an error if the source directory doesn't exist, is not readable,
 // or if writing to the output fails.
-func (a *TarGzArchiver) ArchiveWithProgress(ctx context.Context, sourceDir string, output io.Writer, progress func(current, total int64)) error {
+func (a *TarGzArchiver) ArchiveWithProgress(
+	ctx context.Context,
+	sourceDir string,
+	output io.Writer,
+	progress func(current, total int64),
+) error {
 	if sourceDir == "" {
 		return fmt.Errorf("source directory cannot be empty")
 	}
@@ -100,7 +108,14 @@ func (a *TarGzArchiver) ArchiveWithProgress(ctx context.Context, sourceDir strin
 // archiveWithConcurrency implements concurrent file processing for archiving.
 // It uses a worker pool to process multiple files concurrently while maintaining
 // tar archive order through coordination.
-func (a *TarGzArchiver) archiveWithConcurrency(ctx context.Context, sourceDir string, tarWriter *tar.Writer, currentSize *int64, totalSize int64, progress func(current, total int64)) error {
+func (a *TarGzArchiver) archiveWithConcurrency(
+	ctx context.Context,
+	sourceDir string,
+	tarWriter *tar.Writer,
+	currentSize *int64,
+	totalSize int64,
+	progress func(current, total int64),
+) error {
 	// Collect all file paths first
 	var fileInfos []fileInfoEntry
 	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
@@ -320,7 +335,7 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 
 	tarReader := tar.NewReader(gzipReader)
 
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
@@ -329,6 +344,11 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 		NewFileCountValidator(opts.MaxFiles),
 		NewPermissionSanitizer(),
 	)
+
+	// Path traversal and symlink validation (internal validator)
+	pv := validatepkg.NewPathTraversalValidator()
+	pv.AllowHiddenFiles = false
+	pv.RootPath = targetDir
 
 	totalSize := int64(0)
 	fileCount := 0
@@ -341,7 +361,7 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 		}
 
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break // End of archive
 		}
 		if err != nil {
@@ -350,8 +370,9 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 
 		fileCount++
 
-		if err := validators.ValidatePath(header.Name); err != nil {
-			return NewBundleError("extract", header.Name, err)
+		// Validate path using internal path traversal validator
+		if validateErr := pv.ValidatePath(header.Name); validateErr != nil {
+			return NewBundleError("extract", header.Name, ErrSecurityViolation)
 		}
 
 		filePath := header.Name
@@ -360,9 +381,17 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 			filePath = strings.TrimPrefix(filePath, "/")
 		}
 
+		// Build and validate the absolute extraction path to prevent escapes
 		fullPath := filepath.Join(targetDir, filePath)
-
-		if !strings.HasPrefix(fullPath, targetDir) {
+		rootAbs, err := filepath.Abs(targetDir)
+		if err != nil {
+			return fmt.Errorf("failed to resolve target directory: %w", err)
+		}
+		targetAbs, err := filepath.Abs(filepath.Clean(fullPath))
+		if err != nil {
+			return fmt.Errorf("failed to resolve target path: %w", err)
+		}
+		if !strings.HasPrefix(targetAbs, rootAbs+string(os.PathSeparator)) && targetAbs != rootAbs {
 			return NewBundleError("extract", header.Name, ErrSecurityViolation)
 		}
 
@@ -390,18 +419,18 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 			return NewBundleError("extract", header.Name, err)
 		}
 
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", fullPath, err)
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(fullPath, 0755); err != nil {
+			if err := os.MkdirAll(fullPath, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", fullPath, err)
 			}
 
 		case tar.TypeReg:
-			file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+			file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 			if err != nil {
 				return fmt.Errorf("failed to create file %s: %w", fullPath, err)
 			}
@@ -414,8 +443,9 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 		case tar.TypeSymlink:
 			linkTarget := header.Linkname
 
-			if err := validators.ValidatePath(linkTarget); err != nil {
-				return NewBundleError("extract", header.Name, err)
+			// Validate symlink target using internal validator against root
+			if err := pv.ValidateSymlink(header.Name, linkTarget); err != nil {
+				return NewBundleError("extract", header.Name, ErrSecurityViolation)
 			}
 
 			if err := os.Symlink(linkTarget, fullPath); err != nil {
@@ -427,7 +457,7 @@ func (a *TarGzArchiver) Extract(ctx context.Context, input io.Reader, targetDir 
 		}
 
 		if !opts.PreservePerms && header.Typeflag == tar.TypeReg {
-			if err := os.Chmod(fullPath, 0644); err != nil {
+			if err := os.Chmod(fullPath, 0o644); err != nil {
 				return fmt.Errorf("failed to set permissions for %s: %w", fullPath, err)
 			}
 		}

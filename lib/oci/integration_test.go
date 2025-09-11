@@ -15,9 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/input-output-hk/catalyst-forge-ai/lib/oci/internal/testutil"
 )
 
 // IntegrationTestSuite contains integration tests for OCI bundle operations
@@ -98,7 +99,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryPushPull() {
 
 	// Create a test directory with some files
 	sourceDir := filepath.Join(suite.tempDir, "source")
-	err := os.MkdirAll(sourceDir, 0755)
+	err := os.MkdirAll(sourceDir, 0o755)
 	require.NoError(err)
 
 	// Create some test files
@@ -114,12 +115,12 @@ func (suite *IntegrationTestSuite) TestLocalRegistryPushPull() {
 		// Create subdirectory if needed
 		dir := filepath.Dir(fullPath)
 		if dir != sourceDir {
-			err := os.MkdirAll(dir, 0755)
-			require.NoError(err)
+			mkdirErr := os.MkdirAll(dir, 0o755)
+			require.NoError(mkdirErr)
 		}
 
-		err := os.WriteFile(fullPath, []byte(content), 0644)
-		require.NoError(err)
+		writeErr := os.WriteFile(fullPath, []byte(content), 0o644)
+		require.NoError(writeErr)
 	}
 
 	// Create OCI client configured for test registry
@@ -136,7 +137,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryPushPull() {
 
 	// Create target directory for pull
 	targetDir := filepath.Join(suite.tempDir, "target")
-	err = os.MkdirAll(targetDir, 0755)
+	err = os.MkdirAll(targetDir, 0o755)
 	require.NoError(err)
 
 	// Test pull operation
@@ -160,10 +161,10 @@ func (suite *IntegrationTestSuite) TestLocalRegistryPushWithOptions() {
 
 	// Create a simple test file
 	sourceDir := filepath.Join(suite.tempDir, "source-options")
-	err := os.MkdirAll(sourceDir, 0755)
+	err := os.MkdirAll(sourceDir, 0o755)
 	require.NoError(err)
 
-	err = os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("test content"), 0644)
+	err = os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("test content"), 0o644)
 	require.NoError(err)
 
 	// Create client configured for test registry
@@ -187,7 +188,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryPushWithOptions() {
 
 	// Verify we can pull it back
 	targetDir := filepath.Join(suite.tempDir, "target-options")
-	err = os.MkdirAll(targetDir, 0755)
+	err = os.MkdirAll(targetDir, 0o755)
 	require.NoError(err)
 
 	err = client.Pull(ctx, reference, targetDir)
@@ -207,15 +208,15 @@ func (suite *IntegrationTestSuite) TestLocalRegistrySecurityValidation() {
 
 	// Create a test directory with many files (potential zip bomb scenario)
 	sourceDir := filepath.Join(suite.tempDir, "source-security")
-	err := os.MkdirAll(sourceDir, 0755)
+	err := os.MkdirAll(sourceDir, 0o755)
 	require.NoError(err)
 
 	// Create exactly 100 files (under the default limit of 10000)
 	for i := 0; i < 100; i++ {
 		fileName := fmt.Sprintf("file-%03d.txt", i)
 		content := fmt.Sprintf("Content of file %d", i)
-		err := os.WriteFile(filepath.Join(sourceDir, fileName), []byte(content), 0644)
-		require.NoError(err)
+		writeErr := os.WriteFile(filepath.Join(sourceDir, fileName), []byte(content), 0o644)
+		require.NoError(writeErr)
 	}
 
 	// Push the bundle
@@ -230,7 +231,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistrySecurityValidation() {
 
 	// Pull with restrictive limits
 	targetDir := filepath.Join(suite.tempDir, "target-security")
-	err = os.MkdirAll(targetDir, 0755)
+	err = os.MkdirAll(targetDir, 0o755)
 	require.NoError(err)
 
 	err = client.Pull(ctx, reference, targetDir,
@@ -261,7 +262,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryErrorHandling() {
 
 	nonExistentRef := fmt.Sprintf("%s/non-existent:latest", suite.testRegistry.Reference())
 	targetDir := filepath.Join(suite.tempDir, "non-existent-target")
-	err = os.MkdirAll(targetDir, 0755)
+	err = os.MkdirAll(targetDir, 0o755)
 	assert.NoError(err)
 
 	err = client.Pull(ctx, nonExistentRef, targetDir)
@@ -270,7 +271,11 @@ func (suite *IntegrationTestSuite) TestLocalRegistryErrorHandling() {
 	// Test pushing to non-existent source directory (create a new client for this)
 	client2, err := suite.createTestClient()
 	assert.NoError(err)
-	err = client2.Push(ctx, "/non/existent/directory", fmt.Sprintf("%s/test-error:latest", suite.testRegistry.Reference()))
+	err = client2.Push(
+		ctx,
+		"/non/existent/directory",
+		fmt.Sprintf("%s/test-error:latest", suite.testRegistry.Reference()),
+	)
 	assert.Error(err, "Pushing from non-existent directory should fail")
 }
 
@@ -294,7 +299,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryConcurrentOperations() {
 		go func(id int) {
 			// Create unique source directory
 			sourceDir := filepath.Join(suite.tempDir, fmt.Sprintf("concurrent-source-%d", id))
-			err := os.MkdirAll(sourceDir, 0755)
+			err := os.MkdirAll(sourceDir, 0o755)
 			if err != nil {
 				e := fmt.Errorf("failed to create source dir: %w", err)
 				results <- e
@@ -305,7 +310,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryConcurrentOperations() {
 			// Create test file
 			testFile := filepath.Join(sourceDir, "test.txt")
 			content := fmt.Sprintf("Concurrent test content %d", id)
-			err = os.WriteFile(testFile, []byte(content), 0644)
+			err = os.WriteFile(testFile, []byte(content), 0o644)
 			if err != nil {
 				e := fmt.Errorf("failed to write test file: %w", err)
 				results <- e
@@ -327,7 +332,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryConcurrentOperations() {
 
 			// Create target directory
 			targetDir := filepath.Join(suite.tempDir, fmt.Sprintf("concurrent-target-%d", id))
-			err = os.MkdirAll(targetDir, 0755)
+			err = os.MkdirAll(targetDir, 0o755)
 			if err != nil {
 				results <- fmt.Errorf("failed to create target dir: %w", err)
 				return
@@ -358,7 +363,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryLargeFiles() {
 
 	// Create a moderately large file (1MB) for testing
 	sourceDir := filepath.Join(suite.tempDir, "source-large")
-	err := os.MkdirAll(sourceDir, 0755)
+	err := os.MkdirAll(sourceDir, 0o755)
 	require.NoError(err)
 
 	// Generate 1MB of test data
@@ -367,7 +372,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryLargeFiles() {
 		largeContent[i] = byte(i % 256)
 	}
 
-	err = os.WriteFile(filepath.Join(sourceDir, "large-file.bin"), largeContent, 0644)
+	err = os.WriteFile(filepath.Join(sourceDir, "large-file.bin"), largeContent, 0o644)
 	require.NoError(err)
 
 	// Push and pull the large file
@@ -383,7 +388,7 @@ func (suite *IntegrationTestSuite) TestLocalRegistryLargeFiles() {
 
 	// Pull
 	targetDir := filepath.Join(suite.tempDir, "target-large")
-	err = os.MkdirAll(targetDir, 0755)
+	err = os.MkdirAll(targetDir, 0o755)
 	require.NoError(err)
 
 	err = client.Pull(ctx, reference, targetDir)
@@ -402,7 +407,7 @@ func (suite *IntegrationTestSuite) TestArchiveRoundTrip() {
 
 	// Create a test directory with some files
 	sourceDir := filepath.Join(suite.tempDir, "source-roundtrip")
-	err := os.MkdirAll(sourceDir, 0755)
+	err := os.MkdirAll(sourceDir, 0o755)
 	require.NoError(err)
 
 	// Create some test files
@@ -418,12 +423,12 @@ func (suite *IntegrationTestSuite) TestArchiveRoundTrip() {
 		// Create subdirectory if needed
 		dir := filepath.Dir(fullPath)
 		if dir != sourceDir {
-			err := os.MkdirAll(dir, 0755)
-			require.NoError(err)
+			mkdirErr := os.MkdirAll(dir, 0o755)
+			require.NoError(mkdirErr)
 		}
 
-		err := os.WriteFile(fullPath, []byte(content), 0644)
-		require.NoError(err)
+		writeErr := os.WriteFile(fullPath, []byte(content), 0o644)
+		require.NoError(writeErr)
 	}
 
 	// Create temporary file for archive
@@ -450,7 +455,7 @@ func (suite *IntegrationTestSuite) TestArchiveRoundTrip() {
 
 	// Test archive extraction
 	targetDir := filepath.Join(suite.tempDir, "target-roundtrip")
-	err = os.MkdirAll(targetDir, 0755)
+	err = os.MkdirAll(targetDir, 0o755)
 	require.NoError(err)
 
 	// Open archive file for reading
@@ -541,7 +546,7 @@ func BenchmarkLocalRegistryOperations(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	sourceDir := filepath.Join(tempDir, "source")
-	err = os.MkdirAll(sourceDir, 0755)
+	err = os.MkdirAll(sourceDir, 0o755)
 	if err != nil {
 		b.Fatalf("Failed to create source dir: %v", err)
 	}
@@ -550,9 +555,9 @@ func BenchmarkLocalRegistryOperations(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		fileName := fmt.Sprintf("file-%d.txt", i)
 		content := fmt.Sprintf("Benchmark content for file %d", i)
-		err := os.WriteFile(filepath.Join(sourceDir, fileName), []byte(content), 0644)
-		if err != nil {
-			b.Fatalf("Failed to create test file: %v", err)
+		writeErr := os.WriteFile(filepath.Join(sourceDir, fileName), []byte(content), 0o644)
+		if writeErr != nil {
+			b.Fatalf("Failed to create test file: %v", writeErr)
 		}
 	}
 
@@ -570,7 +575,7 @@ func BenchmarkLocalRegistryOperations(b *testing.B) {
 
 		// Pull operation
 		targetDir := filepath.Join(tempDir, fmt.Sprintf("target-%d", i))
-		err = os.MkdirAll(targetDir, 0755)
+		err = os.MkdirAll(targetDir, 0o755)
 		if err != nil {
 			b.Fatalf("Failed to create target dir: %v", err)
 		}

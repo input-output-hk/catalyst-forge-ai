@@ -71,7 +71,7 @@ func (g *MaliciousArchiveGenerator) GeneratePathTraversalArchive(outputPath stri
 		header := &tar.Header{
 			Name:    entry.name,
 			Size:    int64(len(entry.content)),
-			Mode:    0644,
+			Mode:    0o644,
 			ModTime: time.Now(),
 		}
 
@@ -147,7 +147,7 @@ func (g *MaliciousArchiveGenerator) GenerateFileCountBomb(outputPath string, fil
 		header := &tar.Header{
 			Name:    fileName,
 			Size:    int64(len(content)),
-			Mode:    0644,
+			Mode:    0o644,
 			ModTime: time.Now(),
 		}
 
@@ -193,7 +193,7 @@ func (g *MaliciousArchiveGenerator) GenerateSymlinkBomb(outputPath string) error
 		header := &tar.Header{
 			Name:    f.name,
 			Size:    int64(len(f.content)),
-			Mode:    0644,
+			Mode:    0o644,
 			ModTime: time.Now(),
 		}
 
@@ -223,7 +223,7 @@ func (g *MaliciousArchiveGenerator) GenerateSymlinkBomb(outputPath string) error
 			Name:     link.name,
 			Linkname: link.link,
 			Typeflag: tar.TypeSymlink,
-			Mode:     0777,
+			Mode:     0o777,
 			ModTime:  time.Now(),
 		}
 
@@ -255,7 +255,7 @@ func (g *MaliciousArchiveGenerator) GenerateMalformedArchive(outputPath string) 
 	header := &tar.Header{
 		Name:    "valid.txt",
 		Size:    int64(len(content)),
-		Mode:    0644,
+		Mode:    0o644,
 		ModTime: time.Now(),
 	}
 
@@ -313,7 +313,7 @@ func (g *MaliciousArchiveGenerator) GenerateNestedArchive(outputPath string, dep
 		header := &tar.Header{
 			Name:    currentPath,
 			Size:    int64(len(content)),
-			Mode:    0644,
+			Mode:    0o644,
 			ModTime: time.Now(),
 		}
 
@@ -350,7 +350,7 @@ func (g *MaliciousArchiveGenerator) GenerateLargeFileArchive(outputPath string, 
 	header := &tar.Header{
 		Name:    "large-file.bin",
 		Size:    size, // Claim it's very large
-		Mode:    0644,
+		Mode:    0o644,
 		ModTime: time.Now(),
 	}
 

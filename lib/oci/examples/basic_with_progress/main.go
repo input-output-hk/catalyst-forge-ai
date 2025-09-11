@@ -64,7 +64,7 @@ func main() {
 // createSampleFiles creates sample files for the demonstration
 func createSampleFiles() error {
 	dir := "./sample-files"
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
@@ -81,7 +81,7 @@ func createSampleFiles() error {
 
 	for _, file := range files {
 		path := filepath.Join(dir, file.name)
-		if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(file.content), 0o644); err != nil {
 			return fmt.Errorf("write file %s: %w", file.name, err)
 		}
 	}

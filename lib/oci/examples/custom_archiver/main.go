@@ -31,7 +31,12 @@ func (a *ZipArchiver) Archive(ctx context.Context, sourceDir string, output io.W
 }
 
 // ArchiveWithProgress creates a ZIP archive with progress reporting.
-func (a *ZipArchiver) ArchiveWithProgress(ctx context.Context, sourceDir string, output io.Writer, progress func(current, total int64)) error {
+func (a *ZipArchiver) ArchiveWithProgress(
+	ctx context.Context,
+	sourceDir string,
+	output io.Writer,
+	progress func(current, total int64),
+) error {
 	if sourceDir == "" {
 		return fmt.Errorf("source directory cannot be empty")
 	}
@@ -151,7 +156,12 @@ func (a *ZipArchiver) copyWithProgress(dst io.Writer, src io.Reader, progress fu
 // Extract extracts a ZIP archive to the specified directory.
 // Note: This is a simplified implementation. Production code should include
 // the same security validations as TarGzArchiver.
-func (a *ZipArchiver) Extract(ctx context.Context, input io.Reader, targetDir string, opts ocibundle.ExtractOptions) error {
+func (a *ZipArchiver) Extract(
+	ctx context.Context,
+	input io.Reader,
+	targetDir string,
+	opts ocibundle.ExtractOptions,
+) error {
 	size, err := input.(io.Seeker).Seek(0, io.SeekEnd)
 	if err != nil {
 		return fmt.Errorf("failed to seek to end: %w", err)
@@ -166,7 +176,7 @@ func (a *ZipArchiver) Extract(ctx context.Context, input io.Reader, targetDir st
 		return fmt.Errorf("failed to create ZIP reader: %w", err)
 	}
 
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
@@ -185,14 +195,14 @@ func (a *ZipArchiver) Extract(ctx context.Context, input io.Reader, targetDir st
 		filePath := filepath.Join(targetDir, file.Name)
 
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(filePath, 0755); err != nil {
+			if err := os.MkdirAll(filePath, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", filePath, err)
 			}
 			continue
 		}
 
 		// Create parent directories
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
 			return fmt.Errorf("failed to create parent directory for %s: %w", filePath, err)
 		}
 
@@ -303,7 +313,7 @@ func main() {
 // createSampleFiles creates sample files for the custom archiver demonstration
 func createSampleFiles() error {
 	dir := "./sample-files"
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
@@ -318,7 +328,7 @@ func createSampleFiles() error {
 
 	for _, file := range files {
 		path := filepath.Join(dir, file.name)
-		if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(file.content), 0o644); err != nil {
 			return fmt.Errorf("write file %s: %w", file.name, err)
 		}
 	}

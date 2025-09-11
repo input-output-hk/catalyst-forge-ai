@@ -56,7 +56,7 @@ func main() {
 func createSampleFiles() error {
 	// Create the sample directory
 	dir := "./sample-files"
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
@@ -72,7 +72,7 @@ This bundle contains:
 The OCI Bundle Distribution Module provides secure, streaming operations
 for distributing file bundles as OCI artifacts using ORAS.
 `
-	if err := os.WriteFile(textFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(textFile, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("write README: %w", err)
 	}
 
@@ -82,7 +82,7 @@ for distributing file bundles as OCI artifacts using ORAS.
 echo "Hello from OCI Bundle!"
 echo "This script was distributed as an OCI artifact."
 `
-	if err := os.WriteFile(scriptFile, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(scriptFile, []byte(script), 0o755); err != nil {
 		return fmt.Errorf("write script: %w", err)
 	}
 
@@ -94,7 +94,7 @@ echo "This script was distributed as an OCI artifact."
   "description": "Sample bundle for OCI distribution demo",
   "created": "2025-01-11"
 }`
-	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
+	if err := os.WriteFile(configFile, []byte(config), 0o644); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 

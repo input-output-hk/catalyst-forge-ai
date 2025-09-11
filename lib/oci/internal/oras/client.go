@@ -17,14 +17,19 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
-// DefaultORASClient implements ORASClient using the real ORAS library.
+// DefaultORASClient implements Client using the real ORAS library.
 type DefaultORASClient struct{}
 
-// Ensure DefaultORASClient implements ORASClient.
-// var _ ORASClient = (*DefaultORASClient)(nil) // Verified in interfaces.go
+// Ensure DefaultORASClient implements Client.
+// var _ Client = (*DefaultORASClient)(nil) // Verified in interfaces.go
 
 // Push pushes an artifact to an OCI registry using the real ORAS library.
-func (c *DefaultORASClient) Push(ctx context.Context, reference string, descriptor *PushDescriptor, opts *AuthOptions) error {
+func (c *DefaultORASClient) Push(
+	ctx context.Context,
+	reference string,
+	descriptor *PushDescriptor,
+	opts *AuthOptions,
+) error {
 	return Push(ctx, reference, descriptor, opts)
 }
 
@@ -318,7 +323,8 @@ func Pull(ctx context.Context, reference string, opts *AuthOptions) (*PullDescri
 
 		// Try image manifest first
 		var imgMan ocispec.Manifest
-		if err := json.Unmarshal(manifestBytes, &imgMan); err == nil && (len(imgMan.Layers) > 0 || imgMan.Config.MediaType != "") {
+		if err := json.Unmarshal(manifestBytes, &imgMan); err == nil &&
+			(len(imgMan.Layers) > 0 || imgMan.Config.MediaType != "") {
 			if len(imgMan.Layers) == 0 {
 				return nil, mapORASError("pull", reference, fmt.Errorf("no layers in image manifest"))
 			}
@@ -342,7 +348,7 @@ func Pull(ctx context.Context, reference string, opts *AuthOptions) (*PullDescri
 //
 //	localhost:5000/myrepo:latest -> ("localhost:5000/myrepo", "latest", false)
 //	ghcr.io/org/name@sha256:abcd -> ("ghcr.io/org/name", "sha256:abcd", true)
-func splitReference(full string) (repoPath string, refPart string, isDigest bool) {
+func splitReference(full string) (repoPath, refPart string, isDigest bool) {
 	if full == "" {
 		return "", "", false
 	}

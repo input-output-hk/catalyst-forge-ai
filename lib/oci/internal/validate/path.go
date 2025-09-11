@@ -228,7 +228,12 @@ func (v *PathTraversalValidator) ValidateSymlink(linkPath, targetPath string) er
 
 	// Check if target is within root
 	if !strings.HasPrefix(targetAbs, rootAbs) {
-		return fmt.Errorf("symlink target escapes root directory: %s -> %s (resolved: %s)", linkPath, targetPath, resolvedTarget)
+		return fmt.Errorf(
+			"symlink target escapes root directory: %s -> %s (resolved: %s)",
+			linkPath,
+			targetPath,
+			resolvedTarget,
+		)
 	}
 
 	return nil

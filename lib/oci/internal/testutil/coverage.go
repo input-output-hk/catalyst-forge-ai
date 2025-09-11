@@ -20,7 +20,7 @@ type CoverageReporter struct {
 // NewCoverageReporter creates a new coverage reporter with the specified output directory.
 func NewCoverageReporter(outputDir string) (*CoverageReporter, error) {
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -137,7 +137,7 @@ func (r *CoverageReporter) generateFunctionReport(coverageFile, outputFile strin
 		return fmt.Errorf("failed to generate function report: %w", err)
 	}
 
-	if err := os.WriteFile(outputFile, output, 0644); err != nil {
+	if err := os.WriteFile(outputFile, output, 0o644); err != nil {
 		return fmt.Errorf("failed to write function report: %w", err)
 	}
 
@@ -145,7 +145,10 @@ func (r *CoverageReporter) generateFunctionReport(coverageFile, outputFile strin
 }
 
 // GenerateCombinedCoverage generates coverage reports for multiple packages.
-func (r *CoverageReporter) GenerateCombinedCoverage(ctx context.Context, packagePaths []string) (map[string]float64, error) {
+func (r *CoverageReporter) GenerateCombinedCoverage(
+	ctx context.Context,
+	packagePaths []string,
+) (map[string]float64, error) {
 	results := make(map[string]float64)
 
 	for _, pkgPath := range packagePaths {
@@ -185,7 +188,7 @@ func (r *CoverageReporter) generateSummaryReport(results map[string]float64, out
 		content.WriteString(fmt.Sprintf("\nAverage Coverage: %.2f%%\n", avg))
 	}
 
-	if err := os.WriteFile(outputFile, []byte(content.String()), 0644); err != nil {
+	if err := os.WriteFile(outputFile, []byte(content.String()), 0o644); err != nil {
 		return fmt.Errorf("failed to write summary: %w", err)
 	}
 
@@ -226,11 +229,12 @@ func (r *CoverageReporter) PrintCoverageSummary(results map[string]float64) {
 		avg := total / float64(count)
 		fmt.Printf("\n📊 Average Coverage: %.2f%%\n", avg)
 
-		if avg >= 80.0 {
+		switch {
+		case avg >= 80.0:
 			fmt.Println("🎉 Excellent coverage!")
-		} else if avg >= 60.0 {
+		case avg >= 60.0:
 			fmt.Println("👍 Good coverage, could be improved")
-		} else {
+		default:
 			fmt.Println("⚠️  Coverage needs improvement")
 		}
 	}
@@ -257,21 +261,22 @@ func ValidateCoverage(results map[string]float64, thresholds CoverageThreshold) 
 	var issues []CoverageIssue
 
 	for pkg, percentage := range results {
-		if percentage < thresholds.Minimum {
+		switch {
+		case percentage < thresholds.Minimum:
 			issues = append(issues, CoverageIssue{
 				Package:  pkg,
 				Coverage: percentage,
 				Severity: "critical",
 				Message:  fmt.Sprintf("Coverage %.2f%% below minimum threshold %.2f%%", percentage, thresholds.Minimum),
 			})
-		} else if percentage < thresholds.Good {
+		case percentage < thresholds.Good:
 			issues = append(issues, CoverageIssue{
 				Package:  pkg,
 				Coverage: percentage,
 				Severity: "warning",
 				Message:  fmt.Sprintf("Coverage %.2f%% below good threshold %.2f%%", percentage, thresholds.Good),
 			})
-		} else if percentage < thresholds.Excellent {
+		case percentage < thresholds.Excellent:
 			issues = append(issues, CoverageIssue{
 				Package:  pkg,
 				Coverage: percentage,
