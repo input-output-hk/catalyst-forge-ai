@@ -39,7 +39,9 @@ func NewCoverageReporter(outputDir string) (*CoverageReporter, error) {
 // Close cleans up temporary files.
 func (r *CoverageReporter) Close() error {
 	if r.tempDir != "" {
-		return os.RemoveAll(r.tempDir)
+		if err := os.RemoveAll(r.tempDir); err != nil {
+			return fmt.Errorf("failed to remove temp directory %s: %w", r.tempDir, err)
+		}
 	}
 	return nil
 }
@@ -281,7 +283,11 @@ func ValidateCoverage(results map[string]float64, thresholds CoverageThreshold) 
 				Package:  pkg,
 				Coverage: percentage,
 				Severity: "info",
-				Message:  fmt.Sprintf("Coverage %.2f%% could be improved to reach excellent threshold %.2f%%", percentage, thresholds.Excellent),
+				Message: fmt.Sprintf(
+					"Coverage %.2f%% could be improved to reach excellent threshold %.2f%%",
+					percentage,
+					thresholds.Excellent,
+				),
 			})
 		}
 	}

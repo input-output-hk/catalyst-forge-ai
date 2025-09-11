@@ -75,13 +75,14 @@ func TestCoverageThresholds(t *testing.T) {
 	foundInfo := false
 
 	for _, issue := range issues {
-		if issue.Package == "package4" {
+		switch issue.Package {
+		case "package4":
 			assert.Equal(t, "critical", issue.Severity)
 			foundCritical = true
-		} else if issue.Package == "package3" {
+		case "package3":
 			assert.Equal(t, "warning", issue.Severity)
 			foundWarning = true
-		} else if issue.Package == "package2" {
+		case "package2":
 			assert.Equal(t, "info", issue.Severity)
 			foundInfo = true
 		}

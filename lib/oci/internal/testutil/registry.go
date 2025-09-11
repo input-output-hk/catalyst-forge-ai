@@ -117,7 +117,9 @@ func (r *TestRegistry) URL() string {
 // It should be called in test cleanup (defer statement).
 func (r *TestRegistry) Close(ctx context.Context) error {
 	if r.container != nil {
-		return r.container.Terminate(ctx)
+		if err := r.container.Terminate(ctx); err != nil {
+			return fmt.Errorf("failed to terminate registry container: %w", err)
+		}
 	}
 	return nil
 }
@@ -134,7 +136,7 @@ func (r *TestRegistry) WaitForReady(ctx context.Context, timeout time.Duration) 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("timeout waiting for registry to be ready: %w", ctx.Err())
 		case <-ticker.C:
 			conn, err := net.DialTimeout("tcp", r.reference, 1*time.Second)
 			if err == nil {

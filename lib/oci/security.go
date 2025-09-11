@@ -2,6 +2,8 @@
 // This file contains security validators and constraints for safe archive handling.
 package ocibundle
 
+import "fmt"
+
 // Validator checks for security issues during archive extraction.
 // Implementations of this interface validate different aspects of files and archives
 // to prevent security vulnerabilities such as path traversal attacks, zip bombs,
@@ -205,7 +207,7 @@ func (vc *ValidatorChain) AddValidator(validator Validator) {
 func (vc *ValidatorChain) ValidatePath(path string) error {
 	for _, validator := range vc.validators {
 		if err := validator.ValidatePath(path); err != nil {
-			return err
+			return fmt.Errorf("path validation failed for %s: %w", path, err)
 		}
 	}
 	return nil
@@ -216,7 +218,7 @@ func (vc *ValidatorChain) ValidatePath(path string) error {
 func (vc *ValidatorChain) ValidateFile(info FileInfo) error {
 	for _, validator := range vc.validators {
 		if err := validator.ValidateFile(info); err != nil {
-			return err
+			return fmt.Errorf("file validation failed for %s: %w", info.Name, err)
 		}
 	}
 	return nil
@@ -227,7 +229,12 @@ func (vc *ValidatorChain) ValidateFile(info FileInfo) error {
 func (vc *ValidatorChain) ValidateArchive(stats ArchiveStats) error {
 	for _, validator := range vc.validators {
 		if err := validator.ValidateArchive(stats); err != nil {
-			return err
+			return fmt.Errorf(
+				"archive validation failed (files: %d, size: %d): %w",
+				stats.TotalFiles,
+				stats.TotalSize,
+				err,
+			)
 		}
 	}
 	return nil

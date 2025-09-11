@@ -34,7 +34,9 @@ func NewArchiveGenerator() (*ArchiveGenerator, error) {
 // Close cleans up the temporary directory used by the generator.
 func (g *ArchiveGenerator) Close() error {
 	if g.tempDir != "" {
-		return os.RemoveAll(g.tempDir)
+		if err := os.RemoveAll(g.tempDir); err != nil {
+			return fmt.Errorf("failed to remove temp directory %s: %w", g.tempDir, err)
+		}
 	}
 	return nil
 }
@@ -80,7 +82,7 @@ func (g *ArchiveGenerator) GenerateTestArchive(
 	for i := 0; i < fileCount; i++ {
 		select {
 		case <-ctx.Done():
-			return totalSize, ctx.Err()
+			return totalSize, fmt.Errorf("context cancelled during archive generation: %w", ctx.Err())
 		default:
 		}
 
@@ -128,7 +130,7 @@ func (g *ArchiveGenerator) generateContent(pattern string, size int64) ([]byte, 
 	case "random":
 		content := make([]byte, size)
 		if _, err := crand.Read(content); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to generate random content: %w", err)
 		}
 		return content, nil
 	case "text":
@@ -180,7 +182,7 @@ func (g *ArchiveGenerator) generateMixedContent(size int64) ([]byte, error) {
 
 	binaryContent := make([]byte, binarySize)
 	if _, err := crand.Read(binaryContent); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate random binary content: %w", err)
 	}
 
 	return append(textContent, binaryContent...), nil

@@ -101,16 +101,18 @@ func validateClientOptions(opts *ClientOptions) error {
 	}
 
 	// Validate authentication options if present
-	if opts.Auth != nil {
-		// If static auth is specified, both username and password must be provided
-		if opts.Auth.StaticRegistry != "" {
-			if opts.Auth.StaticUsername == "" {
-				return fmt.Errorf("static username required when static registry is specified")
-			}
-			if opts.Auth.StaticPassword == "" {
-				return fmt.Errorf("static password required when static registry is specified")
-			}
-		}
+	if opts.Auth == nil {
+		return nil
+	}
+	// If static auth is specified, both username and password must be provided
+	if opts.Auth.StaticRegistry == "" {
+		return nil
+	}
+	if opts.Auth.StaticUsername == "" {
+		return fmt.Errorf("static username required when static registry is specified")
+	}
+	if opts.Auth.StaticPassword == "" {
+		return fmt.Errorf("static password required when static registry is specified")
 	}
 
 	return nil
@@ -142,7 +144,7 @@ func retryOperation(ctx context.Context, maxRetries int, delay time.Duration, op
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled during retry operation: %w", ctx.Err())
 		default:
 		}
 
@@ -368,7 +370,10 @@ func (c *Client) Pull(ctx context.Context, reference, targetDir string, opts ...
 	pullErr := retryOperation(ctx, pullOpts.MaxRetries, pullOpts.RetryDelay, func() error {
 		var err error
 		descriptor, err = c.orasClient.Pull(ctx, reference, c.options.Auth)
-		return err
+		if err != nil {
+			return fmt.Errorf("failed to pull OCI artifact %s: %w", reference, err)
+		}
+		return nil
 	})
 	if pullErr != nil {
 		return fmt.Errorf("failed to pull artifact after %d retries: %w", pullOpts.MaxRetries, pullErr)
@@ -434,9 +439,9 @@ func (c *Client) extractAtomically(
 
 // moveFiles moves all files from srcDir to dstDir
 func (c *Client) moveFiles(srcDir, dstDir string) error {
-	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to walk path %s: %w", path, err)
 		}
 
 		// Skip the root directory
@@ -447,7 +452,7 @@ func (c *Client) moveFiles(srcDir, dstDir string) error {
 		// Calculate relative path from source
 		relPath, err := filepath.Rel(srcDir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get relative path from %s to %s: %w", srcDir, path, err)
 		}
 
 		// Calculate destination path
@@ -455,13 +460,22 @@ func (c *Client) moveFiles(srcDir, dstDir string) error {
 
 		if info.IsDir() {
 			// Create directory
-			return os.MkdirAll(dstPath, info.Mode())
+			if err := os.MkdirAll(dstPath, info.Mode()); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
+			}
+			return nil
 		}
 		// Move file
 		if err := os.Rename(path, dstPath); err != nil {
-			return err
+			return fmt.Errorf("failed to move file from %s to %s: %w", path, dstPath, err)
 		}
 		// Restore original permissions
-		return os.Chmod(dstPath, info.Mode())
-	})
+		if err := os.Chmod(dstPath, info.Mode()); err != nil {
+			return fmt.Errorf("failed to set permissions on %s: %w", dstPath, err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to walk directory %s: %w", srcDir, err)
+	}
+	return nil
 }

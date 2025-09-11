@@ -31,7 +31,9 @@ func NewMaliciousArchiveGenerator() (*MaliciousArchiveGenerator, error) {
 // Close cleans up the temporary directory.
 func (g *MaliciousArchiveGenerator) Close() error {
 	if g.tempDir != "" {
-		return os.RemoveAll(g.tempDir)
+		if err := os.RemoveAll(g.tempDir); err != nil {
+			return fmt.Errorf("failed to remove temp directory %s: %w", g.tempDir, err)
+		}
 	}
 	return nil
 }
@@ -260,11 +262,11 @@ func (g *MaliciousArchiveGenerator) GenerateMalformedArchive(outputPath string) 
 	}
 
 	if err := tarWriter.WriteHeader(header); err != nil {
-		return err
+		return fmt.Errorf("failed to write tar header for valid.txt: %w", err)
 	}
 
 	if _, err := tarWriter.Write(content); err != nil {
-		return err
+		return fmt.Errorf("failed to write tar content for valid.txt: %w", err)
 	}
 
 	// Close writers properly

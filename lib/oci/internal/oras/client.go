@@ -138,11 +138,12 @@ func NewRepository(ctx context.Context, reference string, opts *AuthOptions) (*r
 
 	// Apply auth overrides with caching if provided
 	if opts != nil {
-		if opts.CredentialFunc != nil {
+		switch {
+		case opts.CredentialFunc != nil:
 			// Custom credential function takes complete precedence
 			// Wrap with caching for performance
 			authClient.Credential = newCachedCredentialFunc(opts.CredentialFunc)
-		} else if opts.StaticRegistry != "" && opts.StaticUsername != "" {
+		case opts.StaticRegistry != "" && opts.StaticUsername != "":
 			// Static auth override for specific registry with caching
 			staticCred := auth.Credential{
 				Username: opts.StaticUsername,
@@ -150,7 +151,7 @@ func NewRepository(ctx context.Context, reference string, opts *AuthOptions) (*r
 			}
 			authClient.Credential = newCachedCredentialFunc(
 				auth.StaticCredential(opts.StaticRegistry, staticCred))
-		} else {
+		default:
 			// Use cached version of default credential chain
 			authClient.Credential = newCachedCredentialFunc(authClient.Credential)
 		}
@@ -313,34 +314,34 @@ func Pull(ctx context.Context, reference string, opts *AuthOptions) (*PullDescri
 		return nil, mapORASError("pull", reference, err)
 	}
 
-	// If the reference resolves to a manifest, fetch the first content entry (layer/blob)
-	if desc.MediaType == ocispec.MediaTypeImageManifest {
-		manifestBytes, err := io.ReadAll(reader)
-		if err != nil {
-			return nil, mapORASError("pull", reference, fmt.Errorf("read manifest: %w", err))
-		}
-		reader.Close()
-
-		// Try image manifest first
-		var imgMan ocispec.Manifest
-		if err := json.Unmarshal(manifestBytes, &imgMan); err == nil &&
-			(len(imgMan.Layers) > 0 || imgMan.Config.MediaType != "") {
-			if len(imgMan.Layers) == 0 {
-				return nil, mapORASError("pull", reference, fmt.Errorf("no layers in image manifest"))
-			}
-			layerDesc := imgMan.Layers[0]
-			layerReader, err := repo.Blobs().Fetch(ctx, layerDesc)
-			if err != nil {
-				return nil, mapORASError("pull", reference, fmt.Errorf("fetch layer: %w", err))
-			}
-			return &PullDescriptor{MediaType: layerDesc.MediaType, Data: layerReader, Size: layerDesc.Size}, nil
-		}
-
-		return nil, mapORASError("pull", reference, fmt.Errorf("unrecognized manifest format"))
+	// If not a manifest, the fetched target is the content itself
+	if desc.MediaType != ocispec.MediaTypeImageManifest {
+		return &PullDescriptor{MediaType: desc.MediaType, Data: reader, Size: desc.Size}, nil
 	}
 
-	// Otherwise, the fetched target is the content itself
-	return &PullDescriptor{MediaType: desc.MediaType, Data: reader, Size: desc.Size}, nil
+	// Handle image manifest by fetching first layer/blob
+	manifestBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, mapORASError("pull", reference, fmt.Errorf("read manifest: %w", err))
+	}
+	reader.Close()
+
+	var imgMan ocispec.Manifest
+	if unmarshalErr := json.Unmarshal(manifestBytes, &imgMan); unmarshalErr != nil {
+		return nil, mapORASError("pull", reference, fmt.Errorf("unrecognized manifest format"))
+	}
+	if len(imgMan.Layers) == 0 && imgMan.Config.MediaType == "" {
+		return nil, mapORASError("pull", reference, fmt.Errorf("unrecognized manifest format"))
+	}
+	if len(imgMan.Layers) == 0 {
+		return nil, mapORASError("pull", reference, fmt.Errorf("no layers in image manifest"))
+	}
+	layerDesc := imgMan.Layers[0]
+	layerReader, err := repo.Blobs().Fetch(ctx, layerDesc)
+	if err != nil {
+		return nil, mapORASError("pull", reference, fmt.Errorf("fetch layer: %w", err))
+	}
+	return &PullDescriptor{MediaType: layerDesc.MediaType, Data: layerReader, Size: layerDesc.Size}, nil
 }
 
 // splitReference splits a full OCI reference into repository path and reference part (tag or digest).
