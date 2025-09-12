@@ -130,7 +130,7 @@ To mark a task complete:
 ## Section 2: Project and Task Initialization
 
 ### Task 2.1: Implement Root Command Structure
-- [ ] **Description**: Set up the root command and global configuration following [@docs/guides/go/cli.md](docs/guides/go/cli.md#root-command-setup).
+- [x] **Description**: Set up the root command and global configuration following [@docs/guides/go/cli.md](docs/guides/go/cli.md#root-command-setup).
 
 **Implementation Details**:
 - Create `cli/cmd/root.go` with exported `Execute()` function
@@ -140,10 +140,10 @@ To mark a task complete:
 - Follow the exact patterns from the CLI guide
 
 **Success Criteria**:
-- [ ] `main.go` contains only the minimal code shown in guide
-- [ ] Root command properly exports Execute()
-- [ ] Global configuration initialization in place
-- [ ] Command runs without errors: `go run . --help`
+- [x] `main.go` contains only the minimal code shown in guide
+- [x] Root command properly exports Execute()
+- [x] Global configuration initialization in place
+- [x] Command runs without errors: `go run . --help`
 
 ### Task 2.2: Implement the init Command
 - [ ] **Description**: Create the `forge-ai init <project-name> --template=<oci-ref>` command as specified in [@MVP.md](MVP.md#21-implement-the-init-command).
