@@ -13,7 +13,7 @@ This document details the structure, transitions, and management of state files 
 1. **CLI as Single Authority**: Only the CLI can modify state files, enforcing all business rules
 2. **CUE Schema Validation**: All state files validated against CUE schemas before writes
 3. **Phase-Based Access Control**: Different workflow phases have different modification permissions
-4. **Separation of Contract and Progress**: Plans (contracts) are separate from execution state
+4. **Template-Instantiated Single State**: A single `task.yaml` tracks phases, steps, and progress
 5. **Atomic Transactions**: All state changes are validated before application
 6. **Human Readability**: YAML format ensures state is inspectable and debuggable
 7. **Version Control Friendly**: All state changes produce meaningful diffs
@@ -26,8 +26,7 @@ Project Level (Singleton)
 ├── memory/index.yaml     # Project-wide knowledge base
 │
 Task Level (Multiple)
-├── task.yaml            # Execution progress
-├── plan.yaml            # Binding contract
+├── task.yaml            # Unified task state (phases, steps, progress)
 └── memory/index.yaml    # Task-specific knowledge
 ```
 
@@ -40,7 +39,6 @@ All state file schemas are defined in CUE format:
 └── schemas/
     ├── project.cue       # Validates project.yaml
     ├── task.cue          # Validates task.yaml
-    ├── plan.cue          # Validates plan.yaml
     └── memory_index.cue  # Validates memory index.yaml files
 ```
 
@@ -100,99 +98,13 @@ active → maintenance → archived
        ↖─────────────↙
 ```
 
-### Task Plan: `plan.yaml`
+### Task Templates and Task State
 
-**Purpose**: Immutable contract defining what needs to be done, created during planning phase.
-
-**Location**: `tasks/<task-id>/plan.yaml`
-
-**Schema**: `schemas/plan.cue`
-
-```cue
-package schemas
-
-import (
-    "time"
-    "list"
-)
-
-#Plan: {
-    version: string & =~"^v\\d+$"  // Plan version (v1, v2, etc.)
-    created_at: time.Time
-    updated_at: time.Time
-
-    // What we're trying to achieve (at least one required)
-    objectives: [...string] & list.MinItems(1)
-    objectives: [...=~"^.+$"]  // Each must be non-empty
-
-    // What we'll deliver (at least one required)
-    deliverables: [...#Deliverable] & list.MinItems(1)
-    #Deliverable: {
-        id: string & =~"^[a-z][a-z0-9-]*$"  // Valid identifier
-        description: string & =~"^.+$"
-        path: string  // Where it will be created
-        type?: "code" | "document" | "config" | "data"
-        required: bool | *true  // Default to true if not specified
-    }
-
-    // How we'll do it (sequential steps, at least one required)
-    steps: [...#Step] & list.MinItems(1)
-    #Step: {
-        id: string & =~"^[a-z][a-z0-9-]*$"  // Valid identifier
-        description: string & =~"^.+$"
-        estimated_hours?: number & >=0.5 & <=40
-        dependencies?: [...string]  // Step IDs that must complete first (future)
-
-        // At least 2 success criteria per step
-        success_criteria: [...string] & list.MinItems(2)
-        success_criteria: [...=~"^.+$"]
-
-        deliverables?: [...string]  // References to deliverable IDs
-    }
-
-    // Overall success definition
-    success_criteria: [...string]
-    success_criteria: [...=~"^.+$"]
-
-    // Planning metadata
-    planning_notes?: string
-    assumptions?: [...string]
-    risks?: [...string]
-
-    // Ensure unique IDs
-    _uniqueDeliverableIDs: {
-        for i, d in deliverables {
-            for j, d2 in deliverables if i < j {
-                d.id != d2.id
-            }
-        }
-    }
-
-    _uniqueStepIDs: {
-        for i, s in steps {
-            for j, s2 in steps if i < j {
-                s.id != s2.id
-            }
-        }
-    }
-
-    // Ensure step deliverables reference valid deliverable IDs
-    for _, step in steps if step.deliverables != _|_ {
-        for _, ref in step.deliverables {
-            ref: or([ for d in deliverables {d.id}])
-        }
-    }
-}
-```
-
-**Version Management**:
-- Version increments when returning from implementation to planning
-- Previous versions archived as `plan.v1.yaml`, `plan.v2.yaml`, etc.
-- Version tracking enables plan evolution analysis
+Tasks are created from templates that define the initial phase and step structure and which phases are modifiable. The instantiated `tasks/<task-id>/task.yaml` is the single authoritative state file for the task.
 
 ### Task State: `task.yaml`
 
-**Purpose**: Tracks execution progress, referencing plan.yaml for requirements.
+**Purpose**: Tracks execution progress across phases and steps.
 
 **Location**: `tasks/<task-id>/task.yaml`
 
@@ -208,7 +120,7 @@ import (
 
 #Task: {
     // Task identity
-    id: string & =~"^[a-z0-9][a-z0-9-]*$"  // Matches directory name
+    id: string & =~"^[a-z0-9][a-z0-9-]*$"
     title: string & =~"^.+$"
     description?: string
     created_at: time.Time
@@ -218,84 +130,65 @@ import (
     status: "active" | "blocked" | "completed" | "abandoned"
     blocked_reason?: string
 
-    // If blocked, reason is required
     if status == "blocked" {
         blocked_reason: string & =~"^.+$"
     }
 
-    // Phase tracking
+    // Unified phase→step model
     phases: {
-        planning: #PhaseStatus
-        implementation: #PhaseStatus
-        validation: #PhaseStatus
+        planning: #Phase & {modifiable: bool}
+        implementation: #Phase & {modifiable: bool}
+        validation: #Phase & {modifiable: bool}
     }
 
-    #PhaseStatus: {
+    #Phase: {
         status: "pending" | "active" | "completed" | "skipped"
         started_at?: time.Time
         completed_at?: time.Time
         notes?: string
+        steps: [...#PhaseStep]
+        modifiable: bool | *false
 
-        // If completed, must have completed_at
-        if status == "completed" {
-            completed_at: time.Time
-        }
-        // If active or completed, must have started_at
-        if status == "active" || status == "completed" {
-            started_at: time.Time
-        }
+        if status == "completed" { completed_at: time.Time }
+        if status == "active" || status == "completed" { started_at: time.Time }
     }
 
-    // Execution progress (references plan.yaml for requirements)
-    progress: {
-        steps: [ID=string]: #StepProgress
-        deliverables_completed: [...string]  // Deliverable IDs from plan
-    }
-
-    #StepProgress: {
+    #PhaseStep: {
+        id: string & =~"^[a-z][a-z0-9-]*$"
+        description?: string & =~"^.+$"
+        ai_function: "DISCOVER" | "PLAN" | "ASSESS" | "EXECUTE" | "VALIDATE" | "REPORT"
         status: "pending" | "in-progress" | "completed" | "abandoned" | "blocked"
         started_at?: time.Time
         completed_at?: time.Time
         abandoned_at?: time.Time
         blocked_at?: time.Time
         blocked_reason?: string
-        notes?: string
-        evidence?: [...string]  // How success criteria were met
+        artifacts?: [...string]
+        evidence?: [...string]
 
-        // Status-specific field requirements
-        if status == "in-progress" {
-            started_at: time.Time
-        }
+        if status == "in-progress" { started_at: time.Time }
         if status == "completed" {
             started_at: time.Time
             completed_at: time.Time
             evidence: [...string] & list.MinItems(1)
         }
-        if status == "abandoned" {
-            abandoned_at: time.Time
-            notes: string  // Reason for abandonment
-        }
-        if status == "blocked" {
-            blocked_at: time.Time
-            blocked_reason: string & =~"^.+$"
-        }
+        if status == "abandoned" { abandoned_at: time.Time }
+        if status == "blocked" { blocked_at: time.Time, blocked_reason: string & =~"^.+$" }
     }
 
-    // Work tracking
+    // Optional work tracking
     work_log: [...#WorkLogEntry]
     #WorkLogEntry: {
         timestamp: time.Time
         phase: "planning" | "implementation" | "validation"
         step_id?: string
-        action: string  // Step started, completed, checkpoint, etc.
+        action: string  // Step started, completed, note, etc.
         notes?: string
     }
 
-    // Current phase must match phase history
+    // Phase consistency
     _phaseConsistency: {
-        if current_phase == "planning" {
-            phases.planning.status: "active"
-        }
+        if current_phase == "planning" { phases.planning.status: "active" }
         if current_phase == "implementation" {
             phases.planning.status: "completed"
             phases.implementation.status: "active"
@@ -306,6 +199,48 @@ import (
         }
     }
 }
+```
+
+#### Enhanced Task State Example
+
+```yaml
+phases:
+  planning:
+    status: active
+    modifiable: true
+    steps:
+      - id: discover
+        description: Gather requirements
+        ai_function: DISCOVER
+        status: completed
+        started_at: "2024-01-15T10:05:00Z"
+        completed_at: "2024-01-15T10:30:00Z"
+        artifacts: ["artifacts/discovery.md"]
+      - id: plan
+        description: Create structured plan
+        ai_function: PLAN
+        status: completed
+        artifacts: ["plan.yaml"]
+      - id: assess
+        description: Review step sizing and completeness
+        ai_function: ASSESS
+        status: in-progress
+
+  implementation:
+    status: pending
+    modifiable: true
+    steps: []
+
+  validation:
+    status: pending
+    modifiable: false
+    steps:
+      - id: validate
+        ai_function: VALIDATE
+        status: pending
+      - id: report
+        ai_function: REPORT
+        status: pending
 ```
 
 **State Transition Rules**:
@@ -396,17 +331,8 @@ import "time"
 #### Planning → Implementation
 
 **Prerequisites**:
-- plan.yaml exists and passes CUE Go API validation
-- All steps have at least 2 success criteria (enforced by CUE)
-- All deliverables are defined (enforced by CUE)
-- No CUE Go API validation errors
-
-**CLI Validation Process**:
-1. Use CUE Go API to validate plan.yaml against schemas/plan.cue
-2. Verify plan file exists at expected path
-3. Check any cross-file dependencies
-
-If validation fails, CUE Go API provides specific error messages indicating which constraints were violated.
+- Planning steps complete
+- Required execution steps added via `step_add` to modifiable phases
 
 **Human Gate**: `forge-ai task phase next`
 
@@ -419,10 +345,9 @@ If validation fails, CUE Go API provides specific error messages indicating whic
 
 **CLI Validation Process**:
 1. Verify task.yaml passes CUE validation
-2. Check every step in plan has a progress entry
-3. Verify no steps are in "in-progress" or "blocked" status
-4. Confirm all required deliverables are marked complete
-5. Check deliverable files exist at specified paths
+2. Verify no steps are in "in-progress" or "blocked" status
+3. Confirm all required deliverables are marked complete
+4. Check deliverable files exist at specified paths
 
 **Human Gate**: `forge-ai task phase next`
 
@@ -438,19 +363,17 @@ If validation fails, CUE Go API provides specific error messages indicating whic
 #### Implementation → Planning
 
 **Trigger Conditions**:
-- Critical gap in plan discovered
+- Critical gaps discovered
 - Requirements fundamentally changed
 - Success criteria cannot be met
 
 **Process**:
 1. Human initiates: `forge-ai task phase prev --reason="..."`
 2. CLI validates reason is provided
-3. Plan version increments (v1 → v2)
-4. All step progress reset to pending
-5. Planning phase reactivated
+3. All step progress reset to pending
+4. Planning phase reactivated (use `step_add` to add more steps)
 
 **State Preservation**:
-- Previous plan archived
 - Memory entries retained
 - Work products preserved in artifacts/
 
@@ -480,20 +403,18 @@ Beyond CUE's structural validation, the CLI enforces business rules:
 
 **Phase Transition Rules**:
 - Phases must progress sequentially (no skipping)
-- Planning → Implementation requires valid plan.yaml passing CUE validation
+- Planning → Implementation requires planning steps completed and required execution steps added via `step_add`
 - Implementation → Validation requires all required steps completed or abandoned
 - Validation → Complete requires validation report and human approval
 - Backward transitions require documented reasons
 
-**Plan Immutability**:
-- During implementation phase, plan.yaml cannot be modified
-- Changes require returning to planning phase with reason
-- Plan version increments when modified after implementation has begun
+**Phase Modification Rules**:
+- Step additions only occur during the planning phase
+- Target phase must be marked `modifiable: true`
+- Steps cannot be added to the current phase
 
 **Cross-File Validation**:
-While CUE validates individual files, the CLI validates relationships between files:
-- Step IDs in task.yaml must exist in plan.yaml
-- Deliverable IDs in task.yaml must exist in plan.yaml
+While CUE validates individual files, the CLI validates relationships between fields within task.yaml and filesystem:
 - Task IDs in project.yaml must have corresponding directories
 - Memory references must point to existing entities
 
@@ -628,9 +549,9 @@ The CLI exposes query capabilities through MCP tools that agents can invoke:
 - `forge_task_by_phase` - Get tasks in specific phase
 
 **Step Query Tools**:
-- `forge_next_step` - Get next incomplete step to work on
-- `forge_step_status` - Get detailed status of specific step
-- `forge_steps_remaining` - List all incomplete steps
+- `next` - Get the AI Function for the next incomplete step (with context)
+- `step_status` - Get detailed status of specific step
+- `steps_remaining` - List all incomplete steps
 
 **Memory Query Tools**:
 - `forge_memory_search` - Search by tags, keywords, or date range
@@ -654,13 +575,13 @@ The CLI implements efficient query strategies:
 
 **Query Examples**:
 
-When an agent calls `forge_next_step`:
-1. CLI loads current task's plan and progress
+When an agent calls `next`:
+1. CLI loads current task state
 2. Finds first step with status "pending" or "in-progress"
 3. Returns step details with success criteria
 4. Includes any memories tagged with that step ID
 
-When an agent calls `forge_memory_relevant`:
+When an agent calls `memory_relevant`:
 1. CLI determines current phase and step
 2. Filters memories by matching tags
 3. Prioritizes recent memories

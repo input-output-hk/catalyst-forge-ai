@@ -20,10 +20,10 @@ This approach harnesses LLM strengths rather than forcing rigid structures that 
 
 ### Delivery Mechanism
 
-AI Functions are delivered through the Forge CLI's MCP (Model Context Protocol) server:
+AI Functions are delivered through the Forge CLI's MCP (Model Context Protocol) server using a unified interface:
 
-1. Agent calls an MCP tool (e.g., `forge_task_work`)
-2. CLI determines current context and appropriate function
+1. Agent calls `next`
+2. CLI determines current phase, next incomplete step, and appropriate AI Function
 3. CLI injects context into the function template
 4. CLI returns the composed prompt via JSON-RPC
 5. Agent executes the prompt immediately
@@ -57,7 +57,7 @@ When executing this function:
 ## Context Required
 [List of state files, memories, and data the function needs access to]
 - task.yaml (current task state)
-- plan.yaml section for current step
+- task.yaml section for current phase/step
 - Relevant memory entries
 
 ## Instructions
@@ -145,7 +145,7 @@ Use this thinking process:
 ```
 
 **Expected Output**:
-- plan.yaml structure (via `forge_plan_create`)
+- One or more `step_add` calls adding `EXECUTE` steps to a modifiable target phase (e.g., `implementation`)
 - Memory entries for planning decisions
 
 #### ASSESS.ai.md
@@ -169,9 +169,9 @@ Use this thinking process:
 ### Implementation Phase Functions
 
 #### EXECUTE.ai.md
-**Purpose**: Work through plan steps sequentially
+**Purpose**: Work through steps sequentially
 **Context Required**:
-- Current step from plan.yaml
+- Current step from task.yaml
 - Step success criteria
 - Previous step outputs
 - Relevant memories
@@ -193,33 +193,17 @@ If you encounter blockers:
 
 **Expected Output**:
 - Step deliverables (code, documents, etc.)
-- Progress update (via `forge_step_complete`)
+- Artifact registration (via `artifact_save`)
+- Explicit step completion (via `step_complete` with evidence[])
 - Memory entries for decisions/issues
 
-#### CHECKPOINT.ai.md
-**Purpose**: Save progress during long-running steps
-**Context Required**:
-- Current step status
-- Work in progress
-- Time elapsed
-
-**Instructions**:
-- Document current progress
-- Save partial work
-- Create memory entry for context
-- Estimate remaining work
-
-**Expected Output**:
-- Progress notes (via `forge_progress_update`)
-- Memory checkpoint entry
-- Partial deliverables saved
 
 ### Validation Phase Functions
 
 #### VALIDATE.ai.md
 **Purpose**: Verify all success criteria are met
 **Context Required**:
-- Complete plan.yaml
+- Current task.yaml
 - All deliverables
 - Step completion status
 - Test results
@@ -240,7 +224,7 @@ For any failures:
 
 **Expected Output**:
 - Validation checklist with pass/fail status
-- Evidence documentation
+- Evidence documentation (and `artifact_save` for validation report artifacts)
 - Remediation recommendations
 
 #### REPORT.ai.md
@@ -257,8 +241,8 @@ For any failures:
 - Provide recommendations
 
 **Expected Output**:
-- Final validation report (via `forge_artifact_create`)
-- Task completion status (via `forge_task_complete`)
+- Final validation report (register via `artifact_save`)
+- Task completion status
 - Lessons learned memories
 
 ## MCP Tool Integration
@@ -272,7 +256,7 @@ AI Functions are delivered through MCP tools exposed by the CLI:
 {
   "method": "tools/call",
   "params": {
-    "name": "forge_task_work",
+    "name": "next",
     "arguments": {}
   }
 }
@@ -291,26 +275,23 @@ AI Functions are delivered through MCP tools exposed by the CLI:
 ### Available MCP Tools
 
 #### Workflow Tools (Return AI Functions)
-- `forge_task_work` - Returns appropriate function for current phase/step
-- `forge_task_plan` - Returns planning phase function
-- `forge_task_validate` - Returns validation function
-- `forge_task_checkpoint` - Returns checkpoint function
+- `next` - Returns appropriate function for current phase/step
 
 #### State Management Tools
-- `forge_step_complete` - Mark step as complete
-- `forge_step_start` - Begin working on step
-- `forge_progress_update` - Update progress notes
-- `forge_plan_create` - Create plan.yaml
-- `forge_plan_update` - Modify plan.yaml
+- `step_complete` - Mark step as complete with evidence
+- `step_start` - Begin working on step
+- `artifact_save` - Register artifacts
+- `step_add` - Add a step to a modifiable phase
+  - Params: `phase_id`, `step { id, description, ai_function, success_criteria[] }`
+  - Rules: Only during planning; target phase must be modifiable; cannot add to the current phase
 
 #### Memory Tools
-- `forge_memory_add` - Add memory entry with tags
-- `forge_memory_search` - Search memories by tags
-- `forge_memory_relevant` - Get context-relevant memories
+- `memory_add` - Add memory entry with tags
+- `memory_search` - Search memories by tags
+- `memory_relevant` - Get context-relevant memories
 
 #### Artifact Tools
-- `forge_artifact_create` - Create document/deliverable
-- `forge_artifact_update` - Update existing artifact
+- Use `artifact_save` for registering artifacts produced by any function
 
 ## Context Injection
 

@@ -15,7 +15,7 @@ Forge AI is a structured workflow system that guides AI agents through software 
 ### Key Design Principles
 
 - **Universal Structure**: Every task follows the same three phases
-- **Plan as Contract**: Planning phase produces a binding plan document
+- **Template-Defined Workflow**: Templates define phases and initial steps; a single `task.yaml` tracks all phases and steps
 - **Human Gates**: Phase transitions require explicit human approval
 - **Agent Autonomy**: Agents work independently within a phase via MCP tools
 - **State Protection**: CLI exclusively manages all state transitions - LLMs never directly modify files
@@ -50,36 +50,35 @@ Forge AI is a structured workflow system that guides AI agents through software 
 
 ## The Three-Phase Model
 
-Every task progresses through exactly three phases:
+Every task progresses through exactly three phases. All phases are unified around a single model: phases contain steps, and every step points to an AI Function. The agent does not need to know the phase— it simply calls `next`, executes the returned function, saves artifacts, and marks the step complete with evidence.
 
 ### 1. Planning Phase
 **Purpose**: Define what needs to be done and how
-**AI Functions** (delivered via MCP):
+**AI Functions** (delivered via MCP, executed via `next`):
 - `DISCOVER.ai.md` - Understand requirements and gather context
 - `PLAN.ai.md` - Create structured plan with steps
-- `ASSESS.ai.md` - Review step sizing and completeness
+- `ASSESS.ai.md` - Review step sizing and completeness (required)
 
 **Outputs**:
-- `plan.yaml` - Contract defining deliverables, steps, and success criteria
+- Steps added to modifiable phases via `step_add`
 - Discovery notes and design documents
 - Memory entries for key decisions
 
 ### 2. Implementation Phase
-**Purpose**: Execute the plan without deviation
-**AI Functions** (delivered via MCP):
+**Purpose**: Execute the defined steps without deviation
+**AI Functions** (delivered via MCP, executed via `next`):
 - `EXECUTE.ai.md` - Work through plan steps sequentially
-- `CHECKPOINT.ai.md` - Save progress and context periodically
 
 **Outputs**:
-- All deliverables specified in the plan
-- Progress updates in task.yaml (via MCP tools)
+- All deliverables specified by the task steps
+- Explicit step completion updates with evidence
 - Memory entries for issues and decisions
 
-**Constraint**: Cannot modify plan.yaml during this phase (enforced by CLI)
+**Constraint**: Step additions happen only during the planning phase (enforced by CLI)
 
 ### 3. Validation Phase
 **Purpose**: Verify implementation satisfies the plan
-**AI Functions** (delivered via MCP):
+**AI Functions** (delivered via MCP, executed via `next`):
 - `VALIDATE.ai.md` - Check all success criteria
 - `REPORT.ai.md` - Generate comprehensive validation report
 
@@ -87,37 +86,28 @@ Every task progresses through exactly three phases:
 - Validation report confirming all criteria met
 - Final task status update
 
-## MCP Tool Categories
+## MCP Tool Interface
 
-### Workflow Tools (Return AI Functions)
-These tools return composed AI Function prompts with injected context:
-- `forge_task_work` - Returns EXECUTE.ai.md for current step
-- `forge_task_checkpoint` - Returns CHECKPOINT.ai.md with progress
-- `forge_task_validate` - Returns VALIDATE.ai.md for validation phase
-- `forge_task_plan` - Returns appropriate planning phase function
-- `forge_task_discover` - Returns DISCOVER.ai.md for requirements gathering
-- `forge_task_assess` - Returns ASSESS.ai.md for plan review
+Forge exposes a minimal tool surface focused on the unified step model. Agents primarily call `next` to retrieve the AI Function for the next incomplete step, execute it, save artifacts, and explicitly mark the step complete with evidence. Memory remains a first-class, dedicated system with its own tools.
 
-### State Management Tools (Atomic Operations)
-These tools modify state with built-in validation logic:
-- `forge_step_complete` - Mark step as complete with evidence
-- `forge_step_start` - Begin working on a step
-- `forge_step_abandon` - Abandon step with documented reason
-- `forge_progress_update` - Update progress notes
-- `forge_plan_update` - Modify plan (only in planning phase)
-- `forge_deliverable_register` - Register completed deliverable
+### Core Tools
+- `next` — Returns the current AI Function with injected context, or a phase transition message
+- `artifact_save` — Register artifacts
+  - Params: `artifact_id`, `path`, `type`, `description`, `context`
+- `step_start` — Mark a step as in-progress
+  - Params: `step_id`
+- `step_complete` — Mark a step complete with evidence
+  - Params: `step_id`, `evidence[]`
+
+### Planning Tools
+- `step_add` — Add a step to a modifiable phase
+  - Params: `phase_id`, `step { id, description, ai_function, success_criteria[] }`
+  - Rules: Only during planning; target phase must be modifiable; cannot add to the current phase
 
 ### Memory Tools
-- `forge_memory_add` - Create memory entry with tags and context
-- `forge_memory_search` - Query memories by tags/keywords
-- `forge_memory_relevant` - Get context-appropriate memories for current state
-
-### Navigation Tools
-- `forge_next_step` - Get next incomplete step details
-- `forge_phase_status` - Check phase and transition readiness
-- `forge_task_status` - Get comprehensive current task state
-- `forge_plan_view` - View current plan structure
-- `forge_task_list` - List all tasks in project
+- `memory_add` — Create memory entry with tags and context
+- `memory_search` — Query memories by tags/keywords
+- `memory_relevant` — Get context-appropriate memories for current state
 
 ## AI Function Structure
 
@@ -136,7 +126,7 @@ AI Functions are templates that the CLI composes with context:
 ## Context Required
 [Specification of what context will be injected by CLI]
 - Current phase and step information
-- Relevant plan sections
+- Relevant task.yaml phase/step sections
 - Task progress
 - Memory entries
 - File contents as needed
@@ -167,7 +157,7 @@ AI Functions are templates that the CLI composes with context:
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "forge_task_work",
+    "name": "next",
     "arguments": {}
   }
 }
@@ -194,7 +184,7 @@ AI Functions are templates that the CLI composes with context:
   "id": 3,
   "method": "tools/call",
   "params": {
-    "name": "forge_step_complete",
+    "name": "step_complete",
     "arguments": {
       "step_id": "setup-project",
       "evidence": ["go.mod created", "Makefile functional"]
@@ -230,61 +220,17 @@ tasks:
     path: "tasks/001-cli-design"
     phase: "implementation"
     status: "active"
-    plan_version: "v1"
+    template_version: "v1"
 
   "002-fix-bug":
     path: "tasks/002-fix-bug"
     phase: "planning"
     status: "active"
-    plan_version: "v1"
+    template_version: "v1"
 ```
 
-### Task Plan (`tasks/<task-id>/plan.yaml`)
-Created via MCP tools with CLI validation, immutable during implementation:
-
-```yaml
-# Produced during planning phase, immutable during implementation
-version: "v1"
-created_at: "2024-01-15T10:00:00Z"
-
-objectives:
-  - "Create CLI tool for managing forge-ai projects"
-  - "Support project initialization and task management"
-
-deliverables:
-  - id: "cli-binary"
-    description: "Compiled Go CLI application"
-    path: "dist/forge-ai"
-  - id: "user-docs"
-    description: "User documentation"
-    path: "docs/user-guide.md"
-
-steps:  # Sequential execution in v1
-  - id: "setup-project"
-    description: "Initialize Go module and project structure"
-    success_criteria:
-      - "go.mod exists with correct module name"
-      - "Basic directory structure created"
-      - "Makefile with build targets"
-
-  - id: "implement-init"
-    description: "Create init command for new projects"
-    success_criteria:
-      - "Init command creates valid project structure"
-      - "Template files copied correctly"
-      - "Validation passes on created files"
-
-  - id: "write-tests"
-    description: "Add comprehensive test coverage"
-    success_criteria:
-      - "Unit tests for all commands"
-      - "Coverage exceeds 80%"
-
-success_criteria:  # Overall task success
-  - "All deliverables present"
-  - "All step criteria satisfied"
-  - "Manual testing confirms functionality"
-```
+### Task State (`tasks/<task-id>/task.yaml`)
+Instantiated from a task template and updated exclusively through MCP with CLI validation. Tracks phases and steps, including which phases are modifiable.
 
 ### Task State (`tasks/<task-id>/task.yaml`)
 Updated exclusively through MCP with CLI validation:
@@ -445,13 +391,12 @@ forge-ai mcp serve                        # Starts STDIO JSON-RPC server
 All phase transitions require human approval via CLI commands (not MCP tools):
 
 ### Planning → Implementation
-- Plan document (plan.yaml) exists and is complete
-- All steps have success criteria
-- Deliverables clearly specified
+- Planning steps completed (`discover`, `plan`, `assess`)
+- Steps required for execution have been added to modifiable phases
 - Human reviews and approves via CLI
 
 ### Implementation → Validation
-- All plan steps marked complete or abandoned
+- All task steps marked complete or explicitly abandoned
 - No work in progress
 - Human approves transition via CLI
 
@@ -465,13 +410,13 @@ Moving backward is allowed with documented reasons:
 
 #### Implementation → Planning
 Triggers when:
-- Critical gaps in plan discovered
+- Critical gaps are discovered
 - Requirements changed
 - Step success criteria cannot be met
 
 Process:
 1. Human approves return to planning with reason (via CLI)
-2. Agent updates plan.yaml through MCP tools (version increments)
+2. Planning steps resume; additional work is added via `step_add` to modifiable phases
 3. ASSESS.ai.md reviews which steps are affected
 4. All step statuses reset to pending
 5. Implementation resumes from first incomplete step
@@ -483,7 +428,7 @@ The CLI dynamically injects context when delivering AI Functions:
 ### Injected Context Categories
 - **Phase Context**: Current phase, available transitions
 - **Step Context**: Current step details, success criteria, dependencies
-- **Plan Context**: Relevant plan sections, deliverables
+- **Task Context**: Relevant `task.yaml` phase/step sections
 - **Progress Context**: Task status, completed steps, blockers
 - **Memory Context**: Filtered relevant memories based on tags and recency
 - **Project Context**: Project-level configuration and patterns
@@ -532,69 +477,26 @@ AI Functions include escalation rules:
 
 ## Workflow Example with MCP
 
-```bash
-# 1. Human creates task
-forge-ai task new --title="Add authentication to API"
+```python
+# Agent loop (within an MCP client)
+while True:
+    response = next()  # returns composed AI Function with context OR phase transition message
+    if isinstance(response, dict) and response.get("phase_complete"):
+        # Human-controlled phase transition gate
+        # Agent notifies user and exits loop
+        break
 
-# 2. MCP client launches forge-ai via configured command (STDIO session)
-#    (Client executes the command from its MCP config and connects over STDIO)
+    # Execute the returned AI Function
+    execute_function(response)
 
-# 3. Session established; agent begins planning phase
-# Agent calls: forge_task_discover
-# - CLI returns DISCOVER.ai.md with context
-# - Agent gathers requirements
+    # Save any artifacts produced
+    artifact_save(artifact_id="design-notes", path=".forge/ai/tasks/123/artifacts/design.md", type="document", description="Initial design notes", context={})
 
-# Agent calls: forge_task_plan
-# - CLI returns PLAN.ai.md with discovered context
-# - Agent creates plan via forge_plan_update tool
-# - CLI validates plan structure programmatically
+    # Mark step complete with explicit evidence
+    step_complete(step_id="plan", evidence=["execution steps added via step_add", "success criteria defined"])
 
-# Agent calls: forge_task_assess
-# - CLI returns ASSESS.ai.md with plan context
-# - Agent reviews and optimizes plan
-
-# 4. Human reviews plan
-forge-ai task status        # Review the plan document
-forge-ai task phase next    # Approve transition (CLI validates readiness)
-
-# 5. Agent begins implementation phase
-# Agent calls: forge_task_work
-# - CLI returns EXECUTE.ai.md for first incomplete step
-# - Agent works on step
-
-# Agent calls: forge_step_complete
-# - CLI validates completion criteria and marks step complete
-
-# Agent calls: forge_task_checkpoint
-# - CLI returns CHECKPOINT.ai.md
-# - Agent saves progress
-
-# 6. Agent discovers gap in plan
-# Agent calls: forge_memory_add (documents issue)
-# Human intervenes: forge-ai task phase prev --reason="Missing error handling specs"
-
-# 7. Agent updates plan
-# Agent calls: forge_task_plan
-# - Updates plan with missing specs
-# - CLI validates and increments version
-# Agent calls: forge_task_assess
-# - Reviews affected steps
-
-# 8. Human approves updated plan
-forge-ai task phase next
-
-# 9. Agent continues implementation
-# Agent calls: forge_task_work (resumes from first incomplete step)
-
-# 10. Human moves to validation
-forge-ai task phase next
-
-# 11. Agent performs validation
-# Agent calls: forge_task_validate
-# Agent calls: forge_task_report (generates report)
-
-# 12. Human completes task
-forge-ai task complete
+    # Document decisions/issues in memory as needed
+    memory_add(title="Error handling approach", tags=["decision","api"], summary="Using structured errors with codes" )
 ```
 
 ## Filesystem Structure
@@ -607,7 +509,6 @@ forge-ai task complete
     ├── schemas/                     # CUE schemas for validation
     │   ├── project.cue
     │   ├── task.cue
-    │   ├── plan.cue
     │   └── memory_index.cue
     ├── functions/                   # AI Function templates (template-provided)
     │   ├── planning/
@@ -615,8 +516,7 @@ forge-ai task complete
     │   │   ├── PLAN.ai.md
     │   │   └── ASSESS.ai.md
     │   ├── implementation/
-    │   │   ├── EXECUTE.ai.md
-    │   │   └── CHECKPOINT.ai.md
+    │   │   └── EXECUTE.ai.md
     │   └── validation/
     │       ├── VALIDATE.ai.md
     │       └── REPORT.ai.md
@@ -631,8 +531,7 @@ forge-ai task complete
     │   └── migrations.log
     └── tasks/                       # All task data (per-task directories)
         └── 001-cli-design/
-            ├── task.yaml            # Task progress tracking
-            ├── plan.yaml            # Task plan (contract)
+            ├── task.yaml            # Task state: phases, steps, progress
             ├── memory/              # Task-specific memories
             │   ├── index.yaml
             │   ├── 001-template-issue.md
@@ -656,20 +555,19 @@ All paths below are relative to `.forge/ai/`:
 **`memory/project/`**: Project-wide decisions, patterns, and lessons that apply across tasks
 
 **`tasks/`**: Individual task directories containing all task-specific data:
-- `task.yaml`: Progress tracking and phase status (CLI-managed)
-- `plan.yaml`: The binding contract produced during planning (CLI-managed)
+- `task.yaml`: Single authoritative state file for phases, steps, and progress (CLI-managed)
 - `memory/`: Task-specific context and decisions (CLI-managed)
 - `artifacts/`: Documents and deliverables produced during the task
 
 ### File Ownership by Phase (via MCP Tools)
 
 **Planning Phase** can modify (through MCP):
-- `tasks/<id>/plan.yaml` (create/update via forge_plan_update)
+- `tasks/<id>/task.yaml` (add steps to modifiable phases via `step_add`)
 - `tasks/<id>/artifacts/` (design docs, PRDs)
 - `tasks/<id>/memory/` (decisions via forge_memory_add)
 
 **Implementation Phase** can modify (through MCP):
-- `tasks/<id>/task.yaml` (progress updates via forge_progress_update)
+- `tasks/<id>/task.yaml` (progress updates)
 - `tasks/<id>/artifacts/` (deliverables)
 - `tasks/<id>/memory/` (issues, workarounds via forge_memory_add)
 - Project codebase (outside `.forge/ai/`)
@@ -695,9 +593,9 @@ For v1:
 ## Template Distribution
 
 Templates are packaged as OCI images containing:
+- Task templates (`templates/tasks/*.yaml`)
 - AI Function definitions (.ai.md files)
 - MCP tool specifications
-- Default project structure
 - Template memory entries
 - Manifest configuration
 

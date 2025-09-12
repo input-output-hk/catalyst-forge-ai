@@ -1,0 +1,65 @@
+# Default task template with three-phase workflow
+id: "" # Will be set when task is created
+title: "" # Will be set when task is created
+created_at: "" # Will be set when task is created
+current_phase: "planning"
+status: "active"
+
+phases:
+  planning:
+    status: "active"
+    modifiable: false  # Planning phase itself is not modifiable
+    steps:
+      - id: "discover"
+        description: "Gather requirements and understand context"
+        ai_function: "DISCOVER"
+        status: "pending"
+        success_criteria:
+          - "Requirements documented"
+          - "Context understood"
+          - "Key questions identified"
+      
+      - id: "plan"
+        description: "Create structured plan with implementation steps"
+        ai_function: "PLAN"
+        status: "pending"
+        success_criteria:
+          - "Implementation steps defined"
+          - "Success criteria established"
+          - "Steps added via step_add tool"
+      
+      - id: "assess"
+        description: "Review and optimize the plan"
+        ai_function: "ASSESS"
+        status: "pending"
+        success_criteria:
+          - "Step sizing validated"
+          - "Success criteria measurable"
+          - "Plan completeness verified"
+
+  implementation:
+    status: "pending"
+    modifiable: true  # Steps can be added here during planning
+    steps: []  # Will be populated via step_add during planning phase
+
+  validation:
+    status: "pending"
+    modifiable: false
+    steps:
+      - id: "validate"
+        description: "Verify all success criteria are met"
+        ai_function: "VALIDATE"
+        status: "pending"
+        success_criteria:
+          - "All deliverables verified"
+          - "Success criteria checked"
+          - "Evidence documented"
+      
+      - id: "report"
+        description: "Generate comprehensive validation report"
+        ai_function: "REPORT"
+        status: "pending"
+        success_criteria:
+          - "Validation report complete"
+          - "Lessons learned documented"
+          - "Task summary provided"

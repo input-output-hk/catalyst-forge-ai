@@ -13,21 +13,24 @@ Each Forge AI template is a small collection of plain text files:
 ```
 .forge/ai/                        # Total size: ~50-100KB uncompressed
 ├── manifest.yml                  # Template metadata and version
+├── templates/                    # Task templates
+│   └── tasks/
+│       ├── default.yaml
+│       ├── bugfix.yaml
+│       └── research.yaml
 ├── functions/                    # AI Function definitions (~30-50KB)
 │   ├── planning/
 │   │   ├── DISCOVER.ai.md
 │   │   ├── PLAN.ai.md
 │   │   └── ASSESS.ai.md
 │   ├── implementation/
-│   │   ├── EXECUTE.ai.md
-│   │   └── CHECKPOINT.ai.md
+│   │   └── EXECUTE.ai.md
 │   └── validation/
 │       ├── VALIDATE.ai.md
 │       └── REPORT.ai.md
 ├── schemas/                      # CUE schemas (~10-20KB)
 │   ├── project.cue
 │   ├── task.cue
-│   ├── plan.cue
 │   └── memory_index.cue
 └── seeds/                        # Optional starter content
     └── memory/                   # Initial memory entries
@@ -62,8 +65,36 @@ components:
   schemas:
     - project.cue
     - task.cue
-    - plan.cue
     - memory_index.cue
+
+# MCP tools shipped by template (specification)
+tools:
+  core:
+    - next
+    - artifact_save
+    - step_start
+    - step_complete
+  planning:
+    - step_add
+  memory:
+    - memory_add
+    - memory_search
+    - memory_relevant
+
+# Task templates shipped by template (declarations)
+templates:
+  tasks:
+    default: "default.yaml"
+    available:
+      - name: "default"
+        file: "default.yaml"
+        description: "Standard three-phase workflow"
+      - name: "bugfix"
+        file: "bugfix.yaml"
+        description: "Streamlined bug fixing"
+      - name: "research"
+        file: "research.yaml"
+        description: "Research and analysis"
 
 # Optional metadata
 author: "Catalyst Forge Team"
@@ -79,6 +110,8 @@ homepage: "https://github.com/catalyst-forge/golang-cli-template"
 - **Breaking Changes**: Occur when migrations cannot handle the changes
 
 When ANY file in the template changes (AI Function, schema, etc.), the manifest version must be incremented.
+
+Templates are versioned independently. Tasks record the `template_version` they were instantiated from; updating a template affects new tasks.
 
 ## Publishing Process
 
@@ -254,7 +287,11 @@ myproject/
 └── .forge/
     └── ai/
         ├── manifest.yml           # Template manifest (from template)
-        ├── project.yaml          # Project state (created by CLI)
+        ├── project.yaml           # Project state (created by CLI)
+        ├── templates/             # Task templates (from template)
+        │   └── tasks/
+        │       ├── default.yaml
+        │       └── ...
         ├── functions/            # AI Functions (from template)
         ├── schemas/              # CUE schemas (from template)
         ├── memory/               # Memory system (created by CLI)
@@ -265,13 +302,14 @@ myproject/
 
 Template provides:
 - manifest.yml
+- templates/
 - functions/
 - schemas/
 
 CLI creates:
 - project.yaml
 - memory/ structure
-- tasks/ structure
+- tasks/ structure (each `forge-ai task new` instantiates a template into `tasks/<task-id>/task.yaml`)
 
 ## Design Rationale
 
