@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -18,21 +19,27 @@ func TestPublishCommand(t *testing.T) {
 	}{
 		{
 			name:      "missing source flag",
-			args:      []string{"publish", "--registry=ghcr.io/test/repo:v1.0.0"},
+			args:      []string{"publish", "--registry=localhost:5000/test/repo:v1.0.0"},
 			wantError: true,
-			errorMsg:  "source",
+			errorMsg:  "required flag",
 		},
 		{
 			name:      "missing registry flag",
 			args:      []string{"publish", "--source=./template"},
 			wantError: true,
-			errorMsg:  "source directory does not exist", // Source validation happens first
+			errorMsg:  "source directory does not exist",
 		},
 		{
-			name:      "both flags provided",
-			args:      []string{"publish", "--source=./template_source", "--registry=ghcr.io/test/repo:v1.0.0"},
-			wantError: true, // Will fail because directory doesn't exist in test, but validates flags are parsed
-			errorMsg:  "",   // The actual error will be about the source not existing
+			name:      "invalid registry format",
+			args:      []string{"publish", "--source=./template", "--registry=invalid-registry"},
+			wantError: true,
+			errorMsg:  "invalid registry format",
+		},
+		{
+			name:      "source directory doesn't exist",
+			args:      []string{"publish", "--source=./nonexistent", "--registry=localhost:5000/test/repo:v1.0.0"},
+			wantError: true,
+			errorMsg:  "source directory does not exist",
 		},
 	}
 
@@ -167,11 +174,60 @@ func TestValidateRegistryFormat(t *testing.T) {
 }
 
 func TestSourceDirectoryExists(t *testing.T) {
-	// Test with non-existent directory
-	exists := sourceDirectoryExists("/this/does/not/exist")
-	assert.False(t, exists)
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, tmpDir string)
+		path     string
+		expected bool
+	}{
+		{
+			name:     "non-existent directory",
+			setup:    func(t *testing.T, tmpDir string) {},
+			path:     "non-existent-dir",
+			expected: false,
+		},
+		{
+			name: "existing directory",
+			setup: func(t *testing.T, tmpDir string) {
+				err := os.MkdirAll(tmpDir+"/existing-dir", 0o755)
+				require.NoError(t, err)
+			},
+			path:     "existing-dir",
+			expected: true,
+		},
+		{
+			name: "existing file (not directory)",
+			setup: func(t *testing.T, tmpDir string) {
+				err := os.WriteFile(tmpDir+"/test-file.txt", []byte("test"), 0o644)
+				require.NoError(t, err)
+			},
+			path:     "test-file.txt",
+			expected: false,
+		},
+	}
 
-	// Test with current directory (should exist)
-	exists = sourceDirectoryExists(".")
-	assert.True(t, exists)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+
+			// Set up the test scenario
+			tt.setup(t, tmpDir)
+
+			// Change to temp directory for relative path testing
+			oldWd, err := os.Getwd()
+			require.NoError(t, err)
+
+			err = os.Chdir(tmpDir)
+			require.NoError(t, err)
+
+			// Test the function
+			exists := sourceDirectoryExists(tt.path)
+			assert.Equal(t, tt.expected, exists)
+
+			// Change back to original directory
+			err = os.Chdir(oldWd)
+			require.NoError(t, err)
+		})
+	}
 }

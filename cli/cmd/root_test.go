@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -122,6 +124,55 @@ func TestInitConfig(t *testing.T) {
 				// Should use explicit config file
 				assert.Equal(t, tt.expected, cfgFile)
 			}
+		})
+	}
+}
+
+func TestInitConfigWithTempFile(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		expectedKey   string
+		expectedValue string
+	}{
+		{
+			name:          "valid config file",
+			configContent: "test_key: test_value\nanother_key: another_value\n",
+			expectedKey:   "test_key",
+			expectedValue: "test_value",
+		},
+		{
+			name:          "empty config file",
+			configContent: "",
+			expectedKey:   "",
+			expectedValue: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+
+			// Create a test config file
+			configPath := tmpDir + "/test-config.yaml"
+			err := os.WriteFile(configPath, []byte(tt.configContent), 0o644)
+			require.NoError(t, err)
+
+			// Reset viper for clean testing
+			viper.Reset()
+
+			// Set the config file
+			cfgFile = configPath
+			initConfig()
+
+			// Verify that viper could read the config file
+			if tt.expectedKey != "" {
+				assert.Equal(t, tt.expectedValue, viper.GetString(tt.expectedKey))
+			}
+
+			// Verify the config file path is set correctly
+			assert.Equal(t, configPath, cfgFile)
 		})
 	}
 }
