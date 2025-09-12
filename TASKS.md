@@ -146,7 +146,7 @@ To mark a task complete:
 - [x] Command runs without errors: `go run . --help`
 
 ### Task 2.2: Implement the init Command
-- [ ] **Description**: Create the `forge-ai init <project-name> --template=<oci-ref>` command as specified in [@MVP.md](MVP.md#21-implement-the-init-command).
+- [x] **Description**: Create the `forge-ai init <project-name> --template=<oci-ref>` command as specified in [@MVP.md](MVP.md#21-implement-the-init-command).
 
 **Implementation Details**:
 - Create `cli/cmd/init.go` following Cobra patterns
@@ -157,11 +157,11 @@ To mark a task complete:
 - Generate initial `project.yaml` following schema from [@docs/STATE.md](docs/STATE.md#project-state-projectyaml)
 
 **Success Criteria**:
-- [ ] Command validates exactly one project name argument
-- [ ] Successfully pulls template from OCI registry
-- [ ] Creates correct directory structure under `.forge/ai/`
-- [ ] Generates valid `project.yaml` that passes CUE validation
-- [ ] Handles network and authentication errors gracefully
+- [x] Command validates exactly one project name argument
+- [x] Successfully pulls template from OCI registry
+- [x] Creates correct directory structure under `.forge/ai/`
+- [x] Generates valid `project.yaml` that passes CUE validation
+- [x] Handles network and authentication errors gracefully
 
 ### Task 2.3: Implement the task new Command
 - [ ] **Description**: Create the `forge-ai task new --title="<title>"` command as specified in [@MVP.md](MVP.md#22-implement-the-task-new-command).
