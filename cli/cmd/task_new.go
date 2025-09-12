@@ -53,9 +53,9 @@ func runTaskNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to find git repository: %w", err)
 	}
 
-	// Verify this is a Forge AI project by checking for .forge directory
+	// Verify this is a Forge AI project by checking for .forge/ai directory
 	if !repo.IsForgeProject(projectRoot) {
-		return fmt.Errorf("not a Forge AI project (missing .forge directory in %s)", projectRoot)
+		return fmt.Errorf("not a Forge AI project (missing .forge/ai directory in %s)", projectRoot)
 	}
 
 	// Generate task ID

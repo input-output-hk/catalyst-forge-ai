@@ -138,9 +138,9 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 				require.NoError(t, os.MkdirAll(gitDir, 0o755))
 			}
 
-			// Setup .forge directory if needed
+			// Setup .forge/ai directory if needed
 			if tt.setupForge {
-				require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".forge"), 0o755))
+				require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".forge", "ai"), 0o755))
 			}
 
 			// Change to a subdirectory if we have git setup to test repository root finding
@@ -184,13 +184,12 @@ func TestTaskNewCommand_TaskCreation(t *testing.T) {
 	gitDir := filepath.Join(tmpDir, ".git")
 	require.NoError(t, os.MkdirAll(gitDir, 0o755))
 
-	// Create the .forge directory structure with template
-	forgeDir := filepath.Join(tmpDir, ".forge")
-	require.NoError(t, os.MkdirAll(forgeDir, 0o755))
+	// Create the .forge/ai directory structure with template
+	forgeAIDir := filepath.Join(tmpDir, ".forge", "ai")
+	require.NoError(t, os.MkdirAll(forgeAIDir, 0o755))
 
 	// Copy template files to .forge/ai
-	templateDir := filepath.Join(forgeDir, "ai")
-	require.NoError(t, os.MkdirAll(templateDir, 0o755))
+	templateDir := forgeAIDir
 
 	// Copy the actual template files from the project
 	sourceTemplateDir := "/Users/josh/work/catalyst-forge-ai/template_source"
@@ -203,7 +202,7 @@ template:
   source: ghcr.io/forge/template
   version: v1.0.0
 `
-	require.NoError(t, os.WriteFile(filepath.Join(forgeDir, "project.yaml"), []byte(projectYAML), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".forge", "project.yaml"), []byte(projectYAML), 0o644))
 
 	// Change to a subdirectory within the project to test repository root finding
 	testSubDir := filepath.Join(tmpDir, "some", "nested", "directory")
@@ -249,7 +248,7 @@ template:
 	assert.Contains(t, taskYAMLStr, "status: \"active\"")
 
 	// Verify project.yaml was updated
-	updatedProjectYAML, err := os.ReadFile(filepath.Join(forgeDir, "project.yaml"))
+	updatedProjectYAML, err := os.ReadFile(filepath.Join(tmpDir, ".forge", "project.yaml"))
 	require.NoError(t, err)
 
 	projectYAMLStr := string(updatedProjectYAML)

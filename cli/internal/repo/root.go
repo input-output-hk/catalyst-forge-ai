@@ -51,10 +51,10 @@ func FindRootFromDir(startDir string) (string, error) {
 }
 
 // IsForgeProject checks if the given directory is a Forge AI project
-// by verifying the presence of the .forge directory.
+// by verifying the presence of the .forge/ai directory.
 func IsForgeProject(projectRoot string) bool {
-	forgeDir := filepath.Join(projectRoot, ".forge")
-	if info, err := os.Stat(forgeDir); err == nil && info.IsDir() {
+	forgeAIDir := filepath.Join(projectRoot, ".forge", "ai")
+	if info, err := os.Stat(forgeAIDir); err == nil && info.IsDir() {
 		return true
 	}
 	return false

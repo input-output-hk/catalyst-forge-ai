@@ -154,8 +154,8 @@ func TestIsForgeProject(t *testing.T) {
 			name: "is forge project",
 			setup: func(t *testing.T) string {
 				tmpDir := t.TempDir()
-				forgeDir := filepath.Join(tmpDir, ".forge")
-				require.NoError(t, os.MkdirAll(forgeDir, 0o755))
+				forgeAIDir := filepath.Join(tmpDir, ".forge", "ai")
+				require.NoError(t, os.MkdirAll(forgeAIDir, 0o755))
 				return tmpDir
 			},
 			expected: true,
@@ -182,8 +182,8 @@ func TestIsForgeProject(t *testing.T) {
 			name: "nested forge directory",
 			setup: func(t *testing.T) string {
 				tmpDir := t.TempDir()
-				forgeDir := filepath.Join(tmpDir, ".forge")
-				require.NoError(t, os.MkdirAll(forgeDir, 0o755))
+				forgeAIDir := filepath.Join(tmpDir, ".forge", "ai")
+				require.NoError(t, os.MkdirAll(forgeAIDir, 0o755))
 
 				// Create a subdirectory
 				subDir := filepath.Join(tmpDir, "some", "nested", "path")
