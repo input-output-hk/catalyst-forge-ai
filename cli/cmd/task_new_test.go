@@ -86,6 +86,7 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 		args       []string
 		wantError  bool
 		contains   string
+		setupGit   bool
 		setupForge bool
 	}{
 		{
@@ -101,10 +102,19 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 			contains:  "title cannot be empty",
 		},
 		{
+			name:       "no git repository",
+			args:       []string{"task", "new", "--title=Test Task"},
+			wantError:  true,
+			contains:   "no git repository found",
+			setupGit:   false,
+			setupForge: false,
+		},
+		{
 			name:       "not a forge project",
 			args:       []string{"task", "new", "--title=Test Task"},
 			wantError:  true,
 			contains:   "not a Forge AI project",
+			setupGit:   true,
 			setupForge: false,
 		},
 		{
@@ -112,6 +122,7 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 			args:       []string{"task", "new", "--title=Implement User Auth"},
 			wantError:  true, // This will fail because we haven't set up the full project structure yet
 			contains:   "",
+			setupGit:   true,
 			setupForge: true,
 		},
 	}
@@ -120,15 +131,29 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a temporary directory
 			tmpDir := t.TempDir()
-			cwd, err := os.Getwd()
-			require.NoError(t, err)
-			defer func() { _ = os.Chdir(cwd) }()
-			require.NoError(t, os.Chdir(tmpDir))
+
+			// Setup .git directory if needed
+			if tt.setupGit {
+				gitDir := filepath.Join(tmpDir, ".git")
+				require.NoError(t, os.MkdirAll(gitDir, 0o755))
+			}
 
 			// Setup .forge directory if needed
 			if tt.setupForge {
 				require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".forge"), 0o755))
 			}
+
+			// Change to a subdirectory if we have git setup to test repository root finding
+			workDir := tmpDir
+			if tt.setupGit {
+				workDir = filepath.Join(tmpDir, "some", "nested", "path")
+				require.NoError(t, os.MkdirAll(workDir, 0o755))
+			}
+
+			cwd, err := os.Getwd()
+			require.NoError(t, err)
+			defer func() { _ = os.Chdir(cwd) }()
+			require.NoError(t, os.Chdir(workDir))
 
 			cmd := &cobra.Command{Use: "forge-ai"}
 			cmd.AddCommand(taskCmd)
@@ -155,6 +180,10 @@ func TestTaskNewCommand_TaskCreation(t *testing.T) {
 	// Create a temporary directory to simulate project
 	tmpDir := t.TempDir()
 
+	// Create .git directory to simulate a git repository
+	gitDir := filepath.Join(tmpDir, ".git")
+	require.NoError(t, os.MkdirAll(gitDir, 0o755))
+
 	// Create the .forge directory structure with template
 	forgeDir := filepath.Join(tmpDir, ".forge")
 	require.NoError(t, os.MkdirAll(forgeDir, 0o755))
@@ -176,11 +205,14 @@ template:
 `
 	require.NoError(t, os.WriteFile(filepath.Join(forgeDir, "project.yaml"), []byte(projectYAML), 0o644))
 
-	// Change to temp directory
+	// Change to a subdirectory within the project to test repository root finding
+	testSubDir := filepath.Join(tmpDir, "some", "nested", "directory")
+	require.NoError(t, os.MkdirAll(testSubDir, 0o755))
+
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() { _ = os.Chdir(cwd) }()
-	require.NoError(t, os.Chdir(tmpDir))
+	require.NoError(t, os.Chdir(testSubDir))
 
 	// Execute the command
 	cmd := &cobra.Command{Use: "forge-ai"}

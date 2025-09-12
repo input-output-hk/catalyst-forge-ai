@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/input-output-hk/catalyst-forge-ai/cli/internal/repo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -49,16 +50,15 @@ func runTaskNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("title cannot be empty")
 	}
 
-	// Get current working directory as project root
-	projectRoot, err := os.Getwd()
+	// Find the git repository root
+	projectRoot, err := repo.FindRoot()
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
+		return fmt.Errorf("failed to find git repository: %w", err)
 	}
 
 	// Verify this is a Forge AI project by checking for .forge directory
-	forgeDir := filepath.Join(projectRoot, ".forge")
-	if _, statErr := os.Stat(forgeDir); os.IsNotExist(statErr) {
-		return fmt.Errorf("not a Forge AI project (missing .forge directory)")
+	if !repo.IsForgeProject(projectRoot) {
+		return fmt.Errorf("not a Forge AI project (missing .forge directory in %s)", projectRoot)
 	}
 
 	// Generate task ID
