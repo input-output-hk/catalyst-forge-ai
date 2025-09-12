@@ -164,7 +164,7 @@ To mark a task complete:
 - [x] Handles network and authentication errors gracefully
 
 ### Task 2.3: Implement the task new Command
-- [ ] **Description**: Create the `forge-ai task new --title="<title>"` command as specified in [@MVP.md](MVP.md#22-implement-the-task-new-command).
+- [x] **Description**: Create the `forge-ai task new --title="<title>"` command as specified in [@MVP.md](MVP.md#22-implement-the-task-new-command).
 
 **Implementation Details**:
 - Create `cli/cmd/task.go` as parent command (no Run function)
@@ -176,11 +176,11 @@ To mark a task complete:
 - Register task in project.yaml
 
 **Success Criteria**:
-- [ ] Command creates unique, sequential task IDs
-- [ ] Task directory created with correct structure
-- [ ] Task.yaml contains all required fields per schema
-- [ ] Task registered in project.yaml
-- [ ] Initial phase set to "planning"
+- [x] Command creates unique, sequential task IDs
+- [x] Task directory created with correct structure
+- [x] Task.yaml contains all required fields per schema
+- [x] Task registered in project.yaml
+- [x] Initial phase set to "planning"
 
 ## Section 3: MCP Server and Task Lifecycle
 
