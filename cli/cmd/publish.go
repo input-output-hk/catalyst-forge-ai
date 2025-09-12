@@ -1,3 +1,4 @@
+// Package cmd contains all CLI commands for the Forge AI application.
 package cmd
 
 import (
@@ -28,40 +29,26 @@ Example:
 }
 
 func init() {
-	rootCmd.AddCommand(publishCmd)
-
 	publishCmd.Flags().StringVar(&publishSource, "source", "",
 		"Path to template source directory")
 	publishCmd.Flags().StringVar(&publishRegistry, "registry", "",
 		"OCI registry reference (e.g., ghcr.io/org/template:v1.0.0)")
 
 	// Mark flags as required
-	publishCmd.MarkFlagRequired("source")
-	publishCmd.MarkFlagRequired("registry")
-
-	// Bind flags to viper
-	viper.BindPFlag("publish.source", publishCmd.Flags().Lookup("source"))
-	viper.BindPFlag("publish.registry", publishCmd.Flags().Lookup("registry"))
-}
-
-// newPublishCmd creates a new publish command (used for testing)
-func newPublishCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "publish",
-		Short: "Publish a template to an OCI registry",
-		Long: `Publish packages a template source directory and pushes it to an OCI registry.
-
-Example:
-  forge-ai publish --source=./template-source --registry=ghcr.io/org/template:v1.0.0`,
-		RunE: runPublish,
+	if err := publishCmd.MarkFlagRequired("source"); err != nil {
+		panic(fmt.Sprintf("failed to mark source flag as required: %v", err))
+	}
+	if err := publishCmd.MarkFlagRequired("registry"); err != nil {
+		panic(fmt.Sprintf("failed to mark registry flag as required: %v", err))
 	}
 
-	cmd.Flags().StringVar(&publishSource, "source", "",
-		"Path to template source directory")
-	cmd.Flags().StringVar(&publishRegistry, "registry", "",
-		"OCI registry reference (e.g., ghcr.io/org/template:v1.0.0)")
-
-	return cmd
+	// Bind flags to viper
+	if err := viper.BindPFlag("publish.source", publishCmd.Flags().Lookup("source")); err != nil {
+		panic(fmt.Sprintf("failed to bind source flag: %v", err))
+	}
+	if err := viper.BindPFlag("publish.registry", publishCmd.Flags().Lookup("registry")); err != nil {
+		panic(fmt.Sprintf("failed to bind registry flag: %v", err))
+	}
 }
 
 func runPublish(cmd *cobra.Command, args []string) error {

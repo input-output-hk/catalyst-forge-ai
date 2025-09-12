@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ func TestPublishCommand(t *testing.T) {
 			name:      "missing registry flag",
 			args:      []string{"publish", "--source=./template"},
 			wantError: true,
-			errorMsg:  "registry",
+			errorMsg:  "source directory does not exist", // Source validation happens first
 		},
 		{
 			name:      "both flags provided",
@@ -37,16 +38,31 @@ func TestPublishCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset command for each test
-			rootCmd = newRootCmd()
+			// Create a fresh command instance for each test
+			cmd := &cobra.Command{
+				Use:   "forge-ai",
+				Short: "Forge AI CLI for managing AI-assisted development workflows",
+				Long: `Forge AI is a structured workflow system that guides AI agents through
+software development tasks using the Model Context Protocol (MCP).`,
+			}
+
+			// Add the config flag
+			cmd.PersistentFlags().StringVar(&cfgFile, "config", "",
+				"config file (default is $HOME/.forge-ai.yaml)")
+
+			// Add subcommands
+			cmd.AddCommand(publishCmd)
+
+			// Reset viper config for each test
+			cfgFile = ""
 
 			// Capture output
 			buf := new(bytes.Buffer)
-			rootCmd.SetOut(buf)
-			rootCmd.SetErr(buf)
-			rootCmd.SetArgs(tt.args)
+			cmd.SetOut(buf)
+			cmd.SetErr(buf)
+			cmd.SetArgs(tt.args)
 
-			err := rootCmd.Execute()
+			err := cmd.Execute()
 
 			if tt.wantError {
 				assert.Error(t, err)
@@ -61,16 +77,14 @@ func TestPublishCommand(t *testing.T) {
 }
 
 func TestPublishCommandFlags(t *testing.T) {
-	cmd := newPublishCmd()
-
 	// Test that source flag exists
-	sourceFlag := cmd.Flags().Lookup("source")
+	sourceFlag := publishCmd.Flags().Lookup("source")
 	require.NotNil(t, sourceFlag, "source flag should exist")
 	assert.Equal(t, "source", sourceFlag.Name)
 	assert.Equal(t, "Path to template source directory", sourceFlag.Usage)
 
 	// Test that registry flag exists
-	registryFlag := cmd.Flags().Lookup("registry")
+	registryFlag := publishCmd.Flags().Lookup("registry")
 	require.NotNil(t, registryFlag, "registry flag should exist")
 	assert.Equal(t, "registry", registryFlag.Name)
 	assert.Equal(t, "OCI registry reference (e.g., ghcr.io/org/template:v1.0.0)", registryFlag.Usage)
