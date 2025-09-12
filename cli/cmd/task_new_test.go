@@ -93,7 +93,7 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 			name:      "missing title flag",
 			args:      []string{"task", "new"},
 			wantError: true,
-			contains:  "required flag",
+			contains:  "title cannot be empty",
 		},
 		{
 			name:      "empty title",

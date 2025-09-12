@@ -33,9 +33,6 @@ Example:
 
 func init() {
 	taskNewCmd.Flags().StringVar(&taskNewTitle, "title", "", "Title of the new task")
-	if err := taskNewCmd.MarkFlagRequired("title"); err != nil {
-		panic(fmt.Sprintf("failed to mark title flag as required: %v", err))
-	}
 	if err := viper.BindPFlag("task.new.title", taskNewCmd.Flags().Lookup("title")); err != nil {
 		panic(fmt.Sprintf("failed to bind title flag: %v", err))
 	}
