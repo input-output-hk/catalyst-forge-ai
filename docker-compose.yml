@@ -1,0 +1,24 @@
+
+services:
+  zot:
+    image: ghcr.io/project-zot/zot-linux-amd64:latest
+    container_name: zot-registry
+    # Note: Registry runs on port 5050 to avoid conflicts with macOS AirPlay
+    ports:
+      - "5050:5000"
+    volumes:
+      - ./zot-data:/var/lib/registry
+      - ./zot-config.json:/etc/zot/config.json:ro
+    environment:
+      - ZOT_CONFIG=/etc/zot/config.json
+    command: ["serve", "/etc/zot/config.json"]
+    restart: unless-stopped
+    networks:
+      - registry-net
+
+networks:
+  registry-net:
+    driver: bridge
+
+volumes:
+  zot-data:

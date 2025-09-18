@@ -185,7 +185,7 @@ To mark a task complete:
 ## Section 3: MCP Server and Task Lifecycle
 
 ### Task 3.1: Implement Basic MCP Server
-- [ ] **Description**: Create the `forge-ai mcp serve` command that starts a STDIO-based JSON-RPC server as specified in [@docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#mcp-communication-protocol).
+- [x] **Description**: Create the `forge-ai mcp serve` command that starts a STDIO-based JSON-RPC server as specified in [@docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#mcp-communication-protocol).
 
 **Implementation Details**:
 - Create `cli/cmd/mcp.go` as parent command
@@ -197,14 +197,14 @@ To mark a task complete:
 - Follow MCP protocol examples from ARCHITECTURE.md and SDK documentation
 
 **Success Criteria**:
-- [ ] Server starts and listens on STDIO
-- [ ] Responds to `tools/list` with tool catalog
-- [ ] Handles malformed JSON gracefully
-- [ ] Implements proper JSON-RPC error responses
-- [ ] Can be tested with manual JSON input
+- [x] Server starts and listens on STDIO
+- [x] Responds to `tools/list` with tool catalog
+- [x] Handles malformed JSON gracefully
+- [x] Implements proper JSON-RPC error responses
+- [x] Can be tested with manual JSON input
 
 ### Task 3.2: Implement the next Tool
-- [ ] **Description**: Implement the core `next` tool that returns AI Functions with injected context as specified in [@MVP.md](MVP.md#31-implement-the-mcp-server-and-agent-interaction-loop).
+- [x] **Description**: Implement the core `next` tool that returns AI Functions with injected context as specified in [@MVP.md](MVP.md#31-implement-the-mcp-server-and-agent-interaction-loop).
 
 **Implementation Details**:
 - Add `next` tool to MCP server's tool catalog using MCP Go SDK tool registration
@@ -215,14 +215,14 @@ To mark a task complete:
 - Return composed AI Function via MCP SDK's response format
 
 **Success Criteria**:
-- [ ] Tool appears in `tools/list` response
-- [ ] Correctly identifies next incomplete step
-- [ ] Loads and returns appropriate AI Function
-- [ ] Context properly injected into function template
-- [ ] Returns phase transition message when phase complete
+- [x] Tool appears in `tools/list` response
+- [x] Correctly identifies next incomplete step
+- [x] Loads and returns appropriate AI Function
+- [x] Context properly injected into function template
+- [x] Returns phase transition message when phase complete
 
 ### Task 3.3: Implement step_add Tool for Planning Phase
-- [ ] **Description**: Implement the `step_add` tool that allows adding steps during planning as specified in [@docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#planning-tools).
+- [x] **Description**: Implement the `step_add` tool that allows adding steps during planning as specified in [@docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#planning-tools).
 
 **Implementation Details**:
 - Add `step_add` to MCP server's tool catalog using SDK tool registration
@@ -235,14 +235,14 @@ To mark a task complete:
 - Return success/error via MCP SDK response format
 
 **Success Criteria**:
-- [ ] Tool only works during planning phase
-- [ ] Correctly validates modifiable phases
-- [ ] Steps added have required fields (id, description, ai_function, success_criteria)
-- [ ] Task.yaml updates pass CUE validation
-- [ ] Appropriate errors for invalid operations
+- [x] Tool only works during planning phase
+- [x] Correctly validates modifiable phases
+- [x] Steps added have required fields (id, description, ai_function, success_criteria)
+- [x] Task.yaml updates pass CUE validation
+- [x] Appropriate errors for invalid operations
 
 ### Task 3.4: Implement Human Gate Commands
-- [ ] **Description**: Implement `forge-ai task phase next` command for phase transitions as specified in [@MVP.md](MVP.md#32-implement-phase-1-planning).
+- [x] **Description**: Implement `forge-ai task phase next` command for phase transitions as specified in [@MVP.md](MVP.md#32-implement-phase-1-planning).
 
 **Implementation Details**:
 - Create `cli/cmd/task_phase.go` for phase management
@@ -253,11 +253,11 @@ To mark a task complete:
 - Log phase transitions
 
 **Success Criteria**:
-- [ ] Command validates phase transition prerequisites
-- [ ] Updates current_phase correctly
-- [ ] Prevents invalid transitions
-- [ ] Provides clear error messages for blocked transitions
-- [ ] Maintains phase consistency in task.yaml
+- [x] Command validates phase transition prerequisites
+- [x] Updates current_phase correctly
+- [x] Prevents invalid transitions
+- [x] Provides clear error messages for blocked transitions
+- [x] Maintains phase consistency in task.yaml
 
 ### Task 3.5: Implement artifact_save and step_complete Tools
 - [ ] **Description**: Implement tools for saving artifacts and marking steps complete as specified in [@MVP.md](MVP.md#33-implement-phase-2-implementation).

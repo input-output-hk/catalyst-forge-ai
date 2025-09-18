@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"bytes"
-	"os"
+	"context"
 	"testing"
 
+	"github.com/input-output-hk/catalyst-forge-libs/fs/billy"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ifs "github.com/input-output-hk/catalyst-forge-ai/cli/internal/fs"
 )
 
 func TestPublishCommand(t *testing.T) {
@@ -59,6 +62,10 @@ software development tasks using the Model Context Protocol (MCP).`,
 
 			// Add subcommands
 			cmd.AddCommand(publishCmd)
+
+			// Inject in-memory filesystem into context
+			ctx := ifs.With(context.Background(), billy.NewInMemoryFS())
+			cmd.SetContext(ctx)
 
 			// Reset viper config for each test
 			cfgFile = ""
@@ -169,65 +176,6 @@ func TestValidateRegistryFormat(t *testing.T) {
 		t.Run(tt.registry, func(t *testing.T) {
 			valid := isValidRegistryFormat(tt.registry)
 			assert.Equal(t, tt.valid, valid, "Registry format validation failed for: %s", tt.registry)
-		})
-	}
-}
-
-func TestSourceDirectoryExists(t *testing.T) {
-	tests := []struct {
-		name     string
-		setup    func(t *testing.T, tmpDir string)
-		path     string
-		expected bool
-	}{
-		{
-			name:     "non-existent directory",
-			setup:    func(t *testing.T, tmpDir string) {},
-			path:     "non-existent-dir",
-			expected: false,
-		},
-		{
-			name: "existing directory",
-			setup: func(t *testing.T, tmpDir string) {
-				err := os.MkdirAll(tmpDir+"/existing-dir", 0o755)
-				require.NoError(t, err)
-			},
-			path:     "existing-dir",
-			expected: true,
-		},
-		{
-			name: "existing file (not directory)",
-			setup: func(t *testing.T, tmpDir string) {
-				err := os.WriteFile(tmpDir+"/test-file.txt", []byte("test"), 0o644)
-				require.NoError(t, err)
-			},
-			path:     "test-file.txt",
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a temporary directory for testing
-			tmpDir := t.TempDir()
-
-			// Set up the test scenario
-			tt.setup(t, tmpDir)
-
-			// Change to temp directory for relative path testing
-			oldWd, err := os.Getwd()
-			require.NoError(t, err)
-
-			err = os.Chdir(tmpDir)
-			require.NoError(t, err)
-
-			// Test the function
-			exists := sourceDirectoryExists(tt.path)
-			assert.Equal(t, tt.expected, exists)
-
-			// Change back to original directory
-			err = os.Chdir(oldWd)
-			require.NoError(t, err)
 		})
 	}
 }

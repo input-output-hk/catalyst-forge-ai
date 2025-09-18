@@ -1,10 +1,11 @@
 package repo
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/input-output-hk/catalyst-forge-libs/fs"
+	billy "github.com/input-output-hk/catalyst-forge-libs/fs/billy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,58 +13,46 @@ import (
 func TestFindRootFromDir(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupFunc   func(t *testing.T) (string, string) // returns (startDir, expectedRoot)
+		setupFunc   func(t *testing.T, f fs.Filesystem) (string, string) // returns (startDir, expectedRoot)
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "git repo at current directory",
-			setupFunc: func(t *testing.T) (string, string) {
-				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				require.NoError(t, os.MkdirAll(gitDir, 0o755))
-
-				return tmpDir, tmpDir
+			setupFunc: func(t *testing.T, f fs.Filesystem) (string, string) {
+				root := "/repo"
+				require.NoError(t, f.MkdirAll(filepath.Join(root, ".git"), 0o755))
+				return root, root
 			},
 			expectError: false,
 		},
 		{
 			name: "git repo one level up",
-			setupFunc: func(t *testing.T) (string, string) {
-				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				require.NoError(t, os.MkdirAll(gitDir, 0o755))
-
-				// Create a subdirectory
-				subDir := filepath.Join(tmpDir, "subdir")
-				require.NoError(t, os.MkdirAll(subDir, 0o755))
-
-				return subDir, tmpDir
+			setupFunc: func(t *testing.T, f fs.Filesystem) (string, string) {
+				root := "/repo"
+				require.NoError(t, f.MkdirAll(filepath.Join(root, ".git"), 0o755))
+				subDir := filepath.Join(root, "subdir")
+				require.NoError(t, f.MkdirAll(subDir, 0o755))
+				return subDir, root
 			},
 			expectError: false,
 		},
 		{
 			name: "git repo two levels up",
-			setupFunc: func(t *testing.T) (string, string) {
-				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				require.NoError(t, os.MkdirAll(gitDir, 0o755))
-
-				// Create nested subdirectories
-				subDir := filepath.Join(tmpDir, "level1", "level2")
-				require.NoError(t, os.MkdirAll(subDir, 0o755))
-
-				return subDir, tmpDir
+			setupFunc: func(t *testing.T, f fs.Filesystem) (string, string) {
+				root := "/repo"
+				require.NoError(t, f.MkdirAll(filepath.Join(root, ".git"), 0o755))
+				subDir := filepath.Join(root, "level1", "level2")
+				require.NoError(t, f.MkdirAll(subDir, 0o755))
+				return subDir, root
 			},
 			expectError: false,
 		},
 		{
 			name: "no git repo found",
-			setupFunc: func(t *testing.T) (string, string) {
-				tmpDir := t.TempDir()
-				subDir := filepath.Join(tmpDir, "some", "nested", "path")
-				require.NoError(t, os.MkdirAll(subDir, 0o755))
-
+			setupFunc: func(t *testing.T, f fs.Filesystem) (string, string) {
+				subDir := "/repo/some/nested/path"
+				require.NoError(t, f.MkdirAll(subDir, 0o755))
 				return subDir, ""
 			},
 			expectError: true,
@@ -71,16 +60,12 @@ func TestFindRootFromDir(t *testing.T) {
 		},
 		{
 			name: "empty .git file instead of directory",
-			setupFunc: func(t *testing.T) (string, string) {
-				tmpDir := t.TempDir()
-
-				// Create a .git file instead of directory
-				gitFile := filepath.Join(tmpDir, ".git")
-				require.NoError(t, os.WriteFile(gitFile, []byte("not a directory"), 0o644))
-
-				subDir := filepath.Join(tmpDir, "subdir")
-				require.NoError(t, os.MkdirAll(subDir, 0o755))
-
+			setupFunc: func(t *testing.T, f fs.Filesystem) (string, string) {
+				root := "/repo"
+				require.NoError(t, f.MkdirAll(root, 0o755))
+				require.NoError(t, f.WriteFile(filepath.Join(root, ".git"), []byte("not a directory"), 0o644))
+				subDir := filepath.Join(root, "subdir")
+				require.NoError(t, f.MkdirAll(subDir, 0o755))
 				return subDir, ""
 			},
 			expectError: true,
@@ -88,13 +73,10 @@ func TestFindRootFromDir(t *testing.T) {
 		},
 		{
 			name: "git repo at filesystem root",
-			setupFunc: func(t *testing.T) (string, string) {
-				// This test simulates finding .git at the root level
-				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				require.NoError(t, os.MkdirAll(gitDir, 0o755))
-
-				return tmpDir, tmpDir
+			setupFunc: func(t *testing.T, f fs.Filesystem) (string, string) {
+				root := "/"
+				require.NoError(t, f.MkdirAll(filepath.Join(root, ".git"), 0o755))
+				return root, root
 			},
 			expectError: false,
 		},
@@ -102,9 +84,10 @@ func TestFindRootFromDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			startDir, expectedRoot := tt.setupFunc(t)
+			f := billy.NewInMemoryFS()
+			startDir, expectedRoot := tt.setupFunc(t, f)
 
-			root, err := FindRootFromDir(startDir)
+			root, err := FindRootFromDir(f, startDir)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -120,76 +103,52 @@ func TestFindRootFromDir(t *testing.T) {
 }
 
 func TestFindRoot(t *testing.T) {
-	// Test that FindRoot uses the current working directory
-	tmpDir := t.TempDir()
-	gitDir := filepath.Join(tmpDir, ".git")
-	require.NoError(t, os.MkdirAll(gitDir, 0o755))
-
-	// Change to the temp directory
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(cwd) }()
-
-	require.NoError(t, os.Chdir(tmpDir))
-
-	root, err := FindRoot()
+	f := billy.NewInMemoryFS()
+	rootPath := "/repo"
+	require.NoError(t, f.MkdirAll(filepath.Join(rootPath, ".git"), 0o755))
+	root, err := FindRootFromDir(f, rootPath)
 	assert.NoError(t, err)
-
-	// Resolve symlinks to handle macOS differences (/var vs /private/var)
-	expected, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
-	actual, err := filepath.EvalSymlinks(root)
-	require.NoError(t, err)
-
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, rootPath, root)
 }
 
 func TestIsForgeProject(t *testing.T) {
 	tests := []struct {
 		name     string
-		setup    func(t *testing.T) string // returns projectRoot
+		setup    func(t *testing.T, f fs.Filesystem) string // returns projectRoot
 		expected bool
 	}{
 		{
 			name: "is forge project",
-			setup: func(t *testing.T) string {
-				tmpDir := t.TempDir()
-				forgeAIDir := filepath.Join(tmpDir, ".forge", "ai")
-				require.NoError(t, os.MkdirAll(forgeAIDir, 0o755))
-				return tmpDir
+			setup: func(t *testing.T, f fs.Filesystem) string {
+				root := "/proj1"
+				require.NoError(t, f.MkdirAll(filepath.Join(root, ".forge", "ai"), 0o755))
+				return root
 			},
 			expected: true,
 		},
 		{
 			name: "not a forge project",
-			setup: func(t *testing.T) string {
-				tmpDir := t.TempDir()
-				return tmpDir
+			setup: func(t *testing.T, f fs.Filesystem) string {
+				return "/proj2"
 			},
 			expected: false,
 		},
 		{
 			name: "empty .forge file instead of directory",
-			setup: func(t *testing.T) string {
-				tmpDir := t.TempDir()
-				forgeFile := filepath.Join(tmpDir, ".forge")
-				require.NoError(t, os.WriteFile(forgeFile, []byte("not a directory"), 0o644))
-				return tmpDir
+			setup: func(t *testing.T, f fs.Filesystem) string {
+				root := "/proj3"
+				require.NoError(t, f.WriteFile(filepath.Join(root, ".forge"), []byte("not a directory"), 0o644))
+				return root
 			},
 			expected: false,
 		},
 		{
 			name: "nested forge directory",
-			setup: func(t *testing.T) string {
-				tmpDir := t.TempDir()
-				forgeAIDir := filepath.Join(tmpDir, ".forge", "ai")
-				require.NoError(t, os.MkdirAll(forgeAIDir, 0o755))
-
-				// Create a subdirectory
-				subDir := filepath.Join(tmpDir, "some", "nested", "path")
-				require.NoError(t, os.MkdirAll(subDir, 0o755))
-
-				return tmpDir
+			setup: func(t *testing.T, f fs.Filesystem) string {
+				root := "/proj4"
+				require.NoError(t, f.MkdirAll(filepath.Join(root, ".forge", "ai"), 0o755))
+				_ = f.MkdirAll(filepath.Join(root, "some", "nested", "path"), 0o755)
+				return root
 			},
 			expected: true,
 		},
@@ -197,8 +156,9 @@ func TestIsForgeProject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			projectRoot := tt.setup(t)
-			result := IsForgeProject(projectRoot)
+			f := billy.NewInMemoryFS()
+			projectRoot := tt.setup(t, f)
+			result := IsForgeProject(f, projectRoot)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

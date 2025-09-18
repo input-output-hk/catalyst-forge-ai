@@ -3,15 +3,17 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
-	ocibundle "github.com/input-output-hk/catalyst-forge-ai/lib/oci"
+	vfs "github.com/input-output-hk/catalyst-forge-libs/fs"
+	ocibundle "github.com/input-output-hk/catalyst-forge-libs/oci"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	ifs "github.com/input-output-hk/catalyst-forge-ai/cli/internal/fs"
 )
 
 // ociClient defines the minimal interface we need for pulling templates
@@ -20,10 +22,16 @@ type ociClient interface {
 }
 
 // newOCIClient allows injection for tests
-var newOCIClient = func() (ociClient, error) {
-	real, err := ocibundle.New()
+var newOCIClient = func(templateRef string) (ociClient, error) {
+	var clientOpts []ocibundle.ClientOption
+	if strings.HasPrefix(templateRef, "localhost:") || strings.HasPrefix(templateRef, "127.0.0.1:") {
+		// Allow HTTP for localhost registries
+		clientOpts = append(clientOpts, ocibundle.WithAllowHTTP())
+	}
+
+	real, err := ocibundle.NewWithOptions(clientOpts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create OCI client: %w", err)
 	}
 	return &ociWrapper{real: real}, nil
 }
@@ -32,12 +40,13 @@ var newOCIClient = func() (ociClient, error) {
 type ociWrapper struct{ real *ocibundle.Client }
 
 func (w *ociWrapper) Pull(ctx context.Context, reference, targetDir string) error {
-	return w.real.Pull(ctx, reference, targetDir)
+	if err := w.real.Pull(ctx, reference, targetDir); err != nil {
+		return fmt.Errorf("failed to pull OCI template: %w", err)
+	}
+	return nil
 }
 
-var (
-	initTemplate string
-)
+var initTemplate string
 
 var initCmd = &cobra.Command{
 	Use:   "init <project-name>",
@@ -51,7 +60,8 @@ Example:
 }
 
 func init() {
-	initCmd.Flags().StringVar(&initTemplate, "template", "", "OCI template reference (e.g., ghcr.io/org/template:v1.0.0)")
+	initCmd.Flags().
+		StringVar(&initTemplate, "template", "", "OCI template reference (e.g., ghcr.io/org/template:v1.0.0)")
 	if err := initCmd.MarkFlagRequired("template"); err != nil {
 		panic(fmt.Sprintf("failed to mark template flag as required: %v", err))
 	}
@@ -83,30 +93,40 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Prepare directories
-	forgeDir := filepath.Join(".forge")
+	forgeDir := ".forge"
 	aiDir := filepath.Join(forgeDir, "ai")
 
-	if err := ensureEmptyOrCreate(aiDir); err != nil {
+	filesystem := ifs.From(cmd.Context())
+	if filesystem == nil {
+		return fmt.Errorf("no filesystem in context")
+	}
+
+	if err = ensureEmptyOrCreate(filesystem, aiDir); err != nil {
 		return fmt.Errorf("failed to prepare template directory %s: %w", aiDir, err)
 	}
 
 	// Pull the template into .forge/ai
-	client, err := newOCIClient()
+	client, err := newOCIClient(templateRef)
 	if err != nil {
 		return fmt.Errorf("failed to create OCI client: %w", err)
 	}
-	ctx := context.Background()
+	ctx := cmd.Context()
 	if err := client.Pull(ctx, templateRef, aiDir); err != nil {
 		return fmt.Errorf("failed to pull template: %w", err)
 	}
 
 	// Generate project.yaml
-	projectYAML := fmt.Sprintf("projectName: %s\nstatus: active\ntemplate:\n  source: %s\n  version: %s\n", projectName, source, version)
-	if err := os.MkdirAll(forgeDir, 0o755); err != nil {
+	projectYAML := fmt.Sprintf(
+		"projectName: %s\nstatus: active\ntemplate:\n  source: %s\n  version: %s\n",
+		projectName,
+		source,
+		version,
+	)
+	if err := filesystem.MkdirAll(forgeDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create %s: %w", forgeDir, err)
 	}
 	projectPath := filepath.Join(forgeDir, "project.yaml")
-	if err := os.WriteFile(projectPath, []byte(projectYAML), 0o644); err != nil {
+	if err := filesystem.WriteFile(projectPath, []byte(projectYAML), 0o644); err != nil {
 		return fmt.Errorf("failed to write project.yaml: %w", err)
 	}
 
@@ -137,15 +157,20 @@ func parseTemplateRef(ref string) (string, string, error) {
 }
 
 // ensureEmptyOrCreate ensures dir exists and is empty (compatible with lib/oci Pull)
-func ensureEmptyOrCreate(dir string) error {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return os.MkdirAll(dir, 0o755)
-	} else if err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(dir)
+func ensureEmptyOrCreate(filesystem vfs.Filesystem, dir string) error {
+	exists, err := filesystem.Exists(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check directory existence: %w", err)
+	}
+	if !exists {
+		if err = filesystem.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+		return nil
+	}
+	entries, err := filesystem.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
 	}
 	if len(entries) > 0 {
 		return fmt.Errorf("target directory is not empty")

@@ -2,14 +2,19 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
+	vfs "github.com/input-output-hk/catalyst-forge-libs/fs"
+	"github.com/input-output-hk/catalyst-forge-libs/fs/billy"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ifs "github.com/input-output-hk/catalyst-forge-ai/cli/internal/fs"
 )
 
 func TestGenerateTaskID(t *testing.T) {
@@ -52,30 +57,27 @@ func TestGenerateTaskID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a temporary directory to simulate existing tasks
-			tmpDir := t.TempDir()
+			// Use synthetic repo root entirely in memory
+			repoRoot := "/repo"
 
-			// Create existing task directories
+			// Generate task ID (explicit FS)
+			mem := billy.NewInMemoryFS()
+			// Create tasks dir to simulate environment
+			_ = mem.MkdirAll(filepath.Join(repoRoot, "tasks"), 0o755)
+			// Mirror existing IDs in in-memory FS
 			for _, id := range tt.existingIDs {
-				taskDir := filepath.Join(tmpDir, "tasks", id)
-				require.NoError(t, os.MkdirAll(taskDir, 0o755))
-
-				// Create a minimal task.yaml
-				taskYAML := "id: " + id + "\ntitle: \"Existing Task\"\n"
-				taskFile := filepath.Join(taskDir, "task.yaml")
-				require.NoError(t, os.WriteFile(taskFile, []byte(taskYAML), 0o644))
+				_ = mem.MkdirAll(filepath.Join(repoRoot, "tasks", id), 0o755)
+				_ = mem.WriteFile(filepath.Join(repoRoot, "tasks", id, "task.yaml"), []byte("id: \""+id+"\"\n"), 0o644)
 			}
-
-			// Generate task ID
-			id, err := generateTaskID(tmpDir, tt.title)
+			id, err := generateTaskID(mem, repoRoot, tt.title)
 
 			// Assert the result
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedID, id)
 
 			// Assert the task directory path
-			expectedPath := filepath.Join(tmpDir, tt.expectedPath)
-			assert.Equal(t, expectedPath, filepath.Join(tmpDir, "tasks", id))
+			expectedPath := filepath.Join(repoRoot, tt.expectedPath)
+			assert.Equal(t, expectedPath, filepath.Join(repoRoot, "tasks", id))
 		})
 	}
 }
@@ -129,41 +131,61 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a temporary directory
-			tmpDir := t.TempDir()
+			// Synthetic in-mem repo root
+			repoRoot := "/repo"
 
-			// Setup .git directory if needed
-			if tt.setupGit {
-				gitDir := filepath.Join(tmpDir, ".git")
-				require.NoError(t, os.MkdirAll(gitDir, 0o755))
-			}
-
-			// Setup .forge/ai directory if needed
-			if tt.setupForge {
-				require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".forge", "ai"), 0o755))
-			}
-
-			// Change to a subdirectory if we have git setup to test repository root finding
-			workDir := tmpDir
-			if tt.setupGit {
-				workDir = filepath.Join(tmpDir, "some", "nested", "path")
-				require.NoError(t, os.MkdirAll(workDir, 0o755))
-			}
-
-			cwd, err := os.Getwd()
-			require.NoError(t, err)
-			defer func() { _ = os.Chdir(cwd) }()
-			require.NoError(t, os.Chdir(workDir))
-
+			// Build command tree
 			cmd := &cobra.Command{Use: "forge-ai"}
 			cmd.AddCommand(taskCmd)
+
+			// Inject FS into context
+			mem := billy.NewInMemoryFS()
+			ctx := ifs.With(context.Background(), mem)
+			cmd.SetContext(ctx)
+			taskCmd.SetContext(ctx)
+			taskNewCmd.SetContext(ctx)
+
+			// Override findRoot for test
+			origFindRoot := findRoot
+			defer func() { findRoot = origFindRoot }()
+
+			switch tt.name {
+			case "no git repository":
+				findRoot = func(_ vfs.Filesystem) (string, error) {
+					return "", fmt.Errorf("no git repository found")
+				}
+			default:
+				findRoot = func(_ vfs.Filesystem) (string, error) {
+					return repoRoot, nil
+				}
+			}
+
+			// Setup in-memory project depending on scenario
+			if tt.setupGit {
+				_ = mem.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755)
+			}
+			if tt.setupForge {
+				_ = mem.MkdirAll(filepath.Join(repoRoot, ".forge", "ai"), 0o755)
+			}
 
 			buf := new(bytes.Buffer)
 			cmd.SetOut(buf)
 			cmd.SetErr(buf)
 			cmd.SetArgs(tt.args)
 
-			err = cmd.Execute()
+			// Ensure title is provided via viper for cases expecting downstream errors
+			switch tt.name {
+			case "no git repository", "not a forge project", "valid title":
+				// Match provided args' titles for clarity
+				if tt.name == "valid title" {
+					viper.Set("task.new.title", "Implement User Auth")
+				} else {
+					viper.Set("task.new.title", "Test Task")
+				}
+				t.Cleanup(func() { viper.Set("task.new.title", "") })
+			}
+
+			err := cmd.Execute()
 			if tt.wantError {
 				assert.Error(t, err)
 				if tt.contains != "" {
@@ -177,67 +199,74 @@ func TestTaskNewCommand_Validation(t *testing.T) {
 }
 
 func TestTaskNewCommand_TaskCreation(t *testing.T) {
-	// Create a temporary directory to simulate project
-	tmpDir := t.TempDir()
+	// Synthetic repo root
+	repoRoot := "/repo"
 
-	// Create .git directory to simulate a git repository
-	gitDir := filepath.Join(tmpDir, ".git")
-	require.NoError(t, os.MkdirAll(gitDir, 0o755))
+	// Execute the command
+	cmd := &cobra.Command{Use: "forge-ai"}
+	cmd.AddCommand(taskCmd)
 
-	// Create the .forge/ai directory structure with template
-	forgeAIDir := filepath.Join(tmpDir, ".forge", "ai")
-	require.NoError(t, os.MkdirAll(forgeAIDir, 0o755))
-
-	// Copy template files to .forge/ai
-	templateDir := forgeAIDir
-
-	// Copy the actual template files from the project
-	sourceTemplateDir := "/Users/josh/work/catalyst-forge-ai/template_source"
-	require.NoError(t, copyDir(sourceTemplateDir, templateDir))
-
-	// Create project.yaml in .forge directory
+	// Inject FS into context
+	mem := billy.NewInMemoryFS()
+	// Mirror project structure in the in-memory FS
+	_ = mem.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755)
+	_ = mem.MkdirAll(filepath.Join(repoRoot, ".forge", "ai"), 0o755)
+	// Create default template file in mem FS
+	_ = mem.MkdirAll(filepath.Join(repoRoot, ".forge", "ai", "templates", "tasks"), 0o755)
+	_ = mem.WriteFile(
+		filepath.Join(repoRoot, ".forge", "ai", "templates", "tasks", "default.yaml"),
+		[]byte("id: \"\"\ntitle: \"\"\ncurrent_phase: \"planning\"\nstatus: \"active\"\n"),
+		0o644,
+	)
+	// Create project.yaml in mem FS
 	projectYAML := `projectName: test-project
 status: active
 template:
   source: ghcr.io/forge/template
   version: v1.0.0
 `
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".forge", "project.yaml"), []byte(projectYAML), 0o644))
+	_ = mem.MkdirAll(filepath.Join(repoRoot, ".forge"), 0o755)
+	_ = mem.WriteFile(filepath.Join(repoRoot, ".forge", "project.yaml"), []byte(projectYAML), 0o644)
 
-	// Change to a subdirectory within the project to test repository root finding
-	testSubDir := filepath.Join(tmpDir, "some", "nested", "directory")
-	require.NoError(t, os.MkdirAll(testSubDir, 0o755))
+	// Override findRoot to use synthetic repo root
+	origFindRoot := findRoot
+	findRoot = func(_ vfs.Filesystem) (string, error) {
+		return repoRoot, nil
+	}
+	defer func() { findRoot = origFindRoot }()
 
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(cwd) }()
-	require.NoError(t, os.Chdir(testSubDir))
-
-	// Execute the command
-	cmd := &cobra.Command{Use: "forge-ai"}
-	cmd.AddCommand(taskCmd)
+	ctx := ifs.With(context.Background(), mem)
+	cmd.SetContext(ctx)
+	taskCmd.SetContext(ctx)
+	taskNewCmd.SetContext(ctx)
 
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"task", "new", "--title=Implement User Authentication"})
 
-	err = cmd.Execute()
+	// Provide title via viper instead of flag for clarity
+	viper.Set("task.new.title", "Implement User Authentication")
+	t.Cleanup(func() { viper.Set("task.new.title", "") })
+
+	cmd.SetArgs([]string{"task", "new"})
+
+	err := cmd.Execute()
 	require.NoError(t, err)
 
-	// Verify task directory was created
-	taskDirs, err := filepath.Glob(filepath.Join(tmpDir, "tasks", "*"))
+	// Verify task directory was created in the in-memory FS
+	entries, err := mem.ReadDir(filepath.Join(repoRoot, "tasks"))
 	require.NoError(t, err)
-	require.Len(t, taskDirs, 1)
+	require.Len(t, entries, 1)
 
-	taskDir := taskDirs[0]
-	taskID := filepath.Base(taskDir)
+	taskID := entries[0].Name()
+	taskDir := filepath.Join(repoRoot, "tasks", taskID)
 
-	// Verify task.yaml exists and has correct content
+	// Verify task.yaml exists and has correct content (via mem FS)
 	taskYAMLPath := filepath.Join(taskDir, "task.yaml")
-	assert.FileExists(t, taskYAMLPath)
+	_, statErr := mem.Stat(taskYAMLPath)
+	require.NoError(t, statErr)
 
-	taskYAMLContent, err := os.ReadFile(taskYAMLPath)
+	taskYAMLContent, err := mem.ReadFile(taskYAMLPath)
 	require.NoError(t, err)
 
 	// Check that the task.yaml contains expected fields
@@ -247,8 +276,8 @@ template:
 	assert.Contains(t, taskYAMLStr, "current_phase: \"planning\"")
 	assert.Contains(t, taskYAMLStr, "status: \"active\"")
 
-	// Verify project.yaml was updated
-	updatedProjectYAML, err := os.ReadFile(filepath.Join(tmpDir, ".forge", "project.yaml"))
+	// Verify project.yaml was updated in mem FS
+	updatedProjectYAML, err := mem.ReadFile(filepath.Join(repoRoot, ".forge", "project.yaml"))
 	require.NoError(t, err)
 
 	projectYAMLStr := string(updatedProjectYAML)
@@ -256,39 +285,4 @@ template:
 	assert.Contains(t, projectYAMLStr, "phase: planning")
 	assert.Contains(t, projectYAMLStr, "status: active")
 	assert.Contains(t, projectYAMLStr, fmt.Sprintf("path: tasks/%s", taskID))
-}
-
-// Helper function to copy directory (simplified for test)
-func copyDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-
-		targetPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-
-		srcFile, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer srcFile.Close()
-
-		dstFile, err := os.Create(targetPath)
-		if err != nil {
-			return err
-		}
-		defer dstFile.Close()
-
-		_, err = dstFile.ReadFrom(srcFile)
-		return err
-	})
 }

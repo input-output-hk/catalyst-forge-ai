@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	vfs "github.com/input-output-hk/catalyst-forge-libs/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -24,9 +25,12 @@ func init() {
 }
 
 // generateTaskID generates a unique task ID in the format "NNN-slug"
-func generateTaskID(projectRoot, title string) (string, error) {
+func generateTaskID(filesystem vfs.Filesystem, projectRoot, title string) (string, error) {
 	if title == "" {
 		return "", fmt.Errorf("title cannot be empty")
+	}
+	if filesystem == nil {
+		return "", fmt.Errorf("no filesystem in context")
 	}
 
 	// Create slug from title
@@ -34,7 +38,7 @@ func generateTaskID(projectRoot, title string) (string, error) {
 
 	// Find the next available number
 	tasksDir := filepath.Join(projectRoot, "tasks")
-	nextNum := findNextTaskNumber(tasksDir)
+	nextNum := findNextTaskNumber(filesystem, tasksDir)
 
 	// Format as NNN-slug
 	return fmt.Sprintf("%03d-%s", nextNum, slug), nil
@@ -62,12 +66,12 @@ func createSlug(title string) string {
 }
 
 // findNextTaskNumber finds the next available task number
-func findNextTaskNumber(tasksDir string) int {
+func findNextTaskNumber(filesystem vfs.Filesystem, tasksDir string) int {
 	// Default to 1 if no tasks exist
 	nextNum := 1
 
 	// Read existing task directories
-	entries, err := os.ReadDir(tasksDir)
+	entries, err := filesystem.ReadDir(tasksDir)
 	if err != nil {
 		// If tasks directory doesn't exist, return 1
 		if os.IsNotExist(err) {

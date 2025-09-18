@@ -4,13 +4,14 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
-	oci "github.com/input-output-hk/catalyst-forge-ai/lib/oci"
+	oci "github.com/input-output-hk/catalyst-forge-libs/oci"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	ifs "github.com/input-output-hk/catalyst-forge-ai/cli/internal/fs"
 )
 
 var (
@@ -61,13 +62,25 @@ func runPublish(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Get fs from context
+	fs := ifs.From(cmd.Context())
+
 	// Check if source directory exists
-	if !sourceDirectoryExists(source) {
+	if exists, err := fs.Exists(source); err != nil {
+		return fmt.Errorf("failed to check if source directory exists: %w", err)
+	} else if !exists {
 		return fmt.Errorf("source directory does not exist: %s", source)
 	}
 
-	// Create OCI client using lib/oci
-	client, err := oci.New()
+	// Create OCI client with HTTP support for localhost
+	var clientOpts []oci.ClientOption
+	clientOpts = append(clientOpts, oci.WithFilesystem(fs))
+	if strings.HasPrefix(registry, "localhost:") || strings.HasPrefix(registry, "127.0.0.1:") {
+		// Allow HTTP for localhost registries
+		clientOpts = append(clientOpts, oci.WithAllowHTTP())
+	}
+
+	client, err := oci.NewWithOptions(clientOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create OCI client: %w", err)
 	}
@@ -122,12 +135,4 @@ func isValidRegistryFormat(registry string) bool {
 
 	matched, _ := regexp.MatchString(pattern, registry)
 	return matched
-}
-
-func sourceDirectoryExists(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return info.IsDir()
 }

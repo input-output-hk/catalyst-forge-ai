@@ -14,6 +14,7 @@ Thumbs.db
 .idea/
 
 # Build artifacts
+/bin/
 /dist/
 /build/
 /target/
@@ -35,3 +36,6 @@ Thumbs.db
 *.log
 logs/
 *.log.*
+
+# Zot registry data
+zot-data/

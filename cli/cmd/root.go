@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 
+	"github.com/input-output-hk/catalyst-forge-libs/fs/billy"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	ifs "github.com/input-output-hk/catalyst-forge-ai/cli/internal/fs"
 )
 
 var cfgFile string
@@ -16,7 +20,15 @@ var rootCmd = &cobra.Command{
 	Short: "Forge AI CLI for managing AI-assisted development workflows",
 	Long: `Forge AI is a structured workflow system that guides AI agents through
 software development tasks using the Model Context Protocol (MCP).`,
-	// Root command typically has no Run function
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Setup context
+		fs := billy.NewBaseOSFS()
+		ctx := context.Background()
+		ctx = ifs.With(ctx, fs)
+		cmd.SetContext(ctx)
+
+		return nil
+	},
 }
 
 // Execute is called by main.main(). It only needs to happen once.
