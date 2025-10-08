@@ -62,9 +62,40 @@ Clear statement of what this task accomplishes
 - Task XXX must complete first
 - Or: No dependencies (can start immediately)
 
-## Notes
-Any additional context or constraints
+## Implementation Guidance
+- High-level approach or algorithm
+- Key patterns to follow from design
+- Edge cases to handle
+- **DO NOT include code examples or verbatim implementations**
+- **Keep this section brief (3-5 bullets maximum)**
+
+## Testing Guidance
+- What needs test coverage
+- Key test cases to include
+- **DO NOT write out test code**
+- **List test scenarios only, not implementations**
 ```
+
+## CRITICAL: Keep Tasks Concise
+
+**Task files must be under 100 lines total**. They are specifications, not implementations.
+
+### ❌ DO NOT Include:
+- Actual code implementations
+- Complete test suites written out
+- Step-by-step code walkthroughs
+- Verbatim function implementations
+- Full API examples with code
+
+### ✅ DO Include:
+- High-level objectives
+- What files to create/modify
+- Key requirements and constraints
+- Test scenarios (not code)
+- References to design patterns from DESIGN.md
+- Edge cases to consider
+
+**Remember**: The CODER agent will implement. Your job is to specify WHAT to build, not HOW to build it line-by-line.
 
 ## Roadmap Format
 
@@ -98,6 +129,8 @@ Brief summary of implementation approach
 - Dependencies must be explicit
 - Task order must prevent blocking
 - Scope must be appropriate (not too large or small)
+- **Task files must be under 100 lines** (concise specifications only)
+- **No code examples or implementations in task files**
 
 ## Artifact-Specific Guidance
 
