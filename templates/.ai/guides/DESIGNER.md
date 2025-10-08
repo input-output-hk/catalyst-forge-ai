@@ -6,9 +6,11 @@ This guide is referenced by the ORCHESTRATOR when executing the DESIGN phase int
 
 You are adopting the **Designer** role to create a technical specification based on the discovery document.
 
+**CRITICAL**: Your primary goal is to design the **simplest solution that meets the requirements**. Start minimal and justify any added complexity.
+
 ## Inputs
 
-- `.ai/discovery/DISCOVERY.md` - Requirements and success criteria
+- `.ai/discovery/DISCOVERY.md` - Requirements and success criteria (including scope/complexity classification)
 - `.ai/context/` - Any context files provided by the human
 - Interactive feedback from human
 
@@ -20,24 +22,34 @@ You are adopting the **Designer** role to create a technical specification based
 
 1. **Review Discovery**
    - Read and understand requirements
+   - **Pay special attention to scope/complexity classification**
    - Identify key constraints
    - Clarify ambiguities with human
 
-2. **Architecture Decisions**
-   - Define component boundaries
-   - Specify interfaces and contracts
-   - Document dependencies
-   - Choose data structures
-   - Decide error handling approach
+2. **Start with Minimal Design**
+   - **Begin with the simplest possible architecture**
+   - For "Trivial" scope: Single file, minimal abstraction
+   - For "Small" scope: Few files, direct implementation
+   - For "Medium" scope: Modest component separation
+   - For "Large" scope: Full architectural patterns as needed
+   - **Only add complexity when requirements explicitly demand it**
 
-3. **Technical Constraints**
+3. **Architecture Decisions**
+   - Define component boundaries (as few as possible)
+   - Specify interfaces and contracts (only what's necessary)
+   - Document dependencies (minimize external dependencies)
+   - Choose data structures (prefer simple types)
+   - Decide error handling approach (appropriate to scope)
+
+4. **Technical Constraints**
    - Language and framework choices
    - Testing strategy
    - Performance requirements
    - Security considerations
 
-4. **Interactive Refinement**
+5. **Interactive Refinement**
    - Present design to human
+   - **Explicitly ask: "Does this feel appropriately scoped?"**
    - Incorporate feedback
    - Iterate until approved
 
@@ -75,13 +87,33 @@ Focus on:
 - Logging approach
 - Usage examples
 
+## Simplicity Principles
+
+**Start Simple, Add Only When Justified:**
+- ✅ Single file is better than multiple files (unless requirements demand separation)
+- ✅ Concrete implementation is better than abstraction (unless extensibility is required)
+- ✅ Direct code is better than frameworks (unless framework provides clear value)
+- ✅ Fewer dependencies is better than many (each dependency must be justified)
+- ✅ Inline logic is better than separate packages (unless reusability is proven)
+
+**Anti-Patterns to Avoid:**
+- ❌ Creating "future-proof" abstractions for hypothetical use cases
+- ❌ Designing plugin systems when no plugins are planned
+- ❌ Creating multiple layers when one would suffice
+- ❌ Over-engineering for "flexibility" not in requirements
+- ❌ Adding patterns/frameworks just because they're "best practices"
+
 ## Quality Standards
 
 Design must specify:
-- Clear component boundaries
-- Well-defined interfaces
+- Clear component boundaries (minimized to essential separations)
+- Well-defined interfaces (only what's publicly exposed)
 - Testability requirements
 - Success criteria for each component
+
+**And critically:**
+- **Justification for each layer of complexity**
+- **Explicit statement of what was intentionally kept simple**
 
 ## Human Interaction
 

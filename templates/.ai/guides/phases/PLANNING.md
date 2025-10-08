@@ -22,6 +22,8 @@ You are executing the PLANNING phase. Delegate to the PLANNER agent to break dow
    - Review task files in `.ai/planning/tasks/`
    - Verify dependencies are clear
    - Ensure task scope is appropriate
+   - **Verify all components/interfaces/types referenced exist in DESIGN.md**
+   - **Check for fabricated details not in design document**
 
 3. **Update State**
    - Set `phases.PLANNING.status = IN_PROGRESS` at start
@@ -44,7 +46,11 @@ You are executing the PLANNING phase. Delegate to the PLANNER agent to break dow
 
 ## Red Flags
 
-- Tasks that are too large (>500 lines of guidance)
+- Tasks that are too large (>100 lines of specification)
 - Vague acceptance criteria
 - Missing dependencies
 - Tasks with code examples (should be high-level guidance only)
+- **Components/interfaces/types not mentioned in DESIGN.md**
+- **Implementation details that seem invented vs. from design**
+- **Task guidance that doesn't reference design sections**
+- **Assumptions about architecture not in design document**
