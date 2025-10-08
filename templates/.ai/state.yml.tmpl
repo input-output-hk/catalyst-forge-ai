@@ -1,0 +1,57 @@
+# Catalyst Forge AI - Project State
+# This file tracks the progress of the multi-agent build system
+
+# Metadata
+version: "1.0"
+created_at: "{{.CreatedAt}}"
+cache_source: "{{.CacheCommit}}"
+
+# What we're building
+artifact:
+  type: ""           # Set during DISCOVERY: library | service | xrd | script
+  name: ""           # e.g., "discovery" or "platform-api"
+  description: ""    # One-liner from DISCOVERY
+
+# Current progress
+current_phase: DISCOVERY
+
+phases:
+  DISCOVERY:
+    status: PENDING  # PENDING | IN_PROGRESS | COMPLETE | BLOCKED
+    started_at: null
+    completed_at: null
+    human_approved: false
+
+  DESIGN:
+    status: PENDING
+    started_at: null
+    completed_at: null
+    human_approved: false
+
+  PLANNING:
+    status: PENDING
+    started_at: null
+    completed_at: null
+    human_approved: false
+    task_count: 0
+
+  IMPLEMENTATION:
+    status: PENDING
+    started_at: null
+    current_task: null
+    tasks: {}
+
+  INTEGRATION_TESTING:
+    status: PENDING
+    started_at: null
+    completed_at: null
+    human_approved: false
+
+  FINAL_REVIEW:
+    status: PENDING
+    started_at: null
+    completed_at: null
+    human_approved: false
+
+# Issues blocking progress
+blockers: []
