@@ -34,11 +34,90 @@ Check each criterion from task specification:
 
 ### 2. Automated Validation
 
-Run checks:
-- **Compilation**: Does code compile?
-- **Tests**: Do all tests pass?
-- **Linting**: Does code pass style checks?
-- **Coverage**: Is test coverage >80%?
+**YOU MUST RUN these checks:**
+
+**For Go projects:**
+```bash
+# Compilation check
+go build ./...
+
+# Run tests
+go test ./...
+
+# Run linter (REQUIRED)
+golangci-lint run
+
+# Check coverage
+go test -cover ./...
+```
+
+**For TypeScript projects:**
+```bash
+# Compilation check
+npm run build
+
+# Run tests
+npm test
+
+# Run linter (REQUIRED)
+npm run lint
+# or
+eslint .
+
+# Check coverage
+npm run test:coverage
+```
+
+**For Python projects:**
+```bash
+# Run tests
+pytest
+
+# Run linter (REQUIRED)
+pylint **/*.py
+# or
+flake8 .
+
+# Check coverage
+pytest --cov
+```
+
+**Document results:**
+- **Compilation**: PASS | FAIL
+- **Tests**: PASS | FAIL (how many passed/failed)
+- **Linting**: PASS | FAIL (must run appropriate linter)
+- **Coverage**: X% (PASS if >80%, FAIL otherwise)
+
+**Exception: Intentional Linting Failures**
+
+If the coder's implementation notes document intentional linting failures:
+- **Check their justification** - Is the reason valid and well-explained?
+- **Verify documentation** - Did they clearly document what's failing and why?
+- **Assess timeline** - Did they explain when the issue will be resolved?
+
+Valid reasons for accepting linting failures:
+- Future task will complete the implementation (verified in roadmap)
+- Intentional architectural deviation with strong justification
+- Known linter bug or false positive (documented)
+
+**You may APPROVE with documented linting failures IF:**
+1. The coder documented them clearly in notes.md
+2. The justification is sound
+3. There's a clear plan for resolution
+4. The failures don't indicate actual code quality issues
+
+**Example acceptable documentation in notes.md:**
+```markdown
+## Linting
+- Status: FAILED (intentionally)
+- Command: golangci-lint run
+- Errors: 2 errors
+  - unused variable 'foo' in parser.go:123 - will be used in task 003
+  - unused import 'crypto' in types.go:5 - needed for task 004 encryption
+- Justification: These are forward declarations for upcoming tasks
+```
+
+If linting failures are NOT documented or justification is weak, mark as NEEDS_REVISION.
 
 ### 3. Code Quality Review
 
@@ -172,27 +251,32 @@ This is iteration N of max 5. After 5 iterations, escalate to human even if issu
 
 **Go**:
 - Check for proper error handling (no ignored errors)
-- Verify golangci-lint passes
+- **MUST verify:** `golangci-lint run` passes with zero errors
 - Check for goroutine leaks in tests
 - Verify proper use of contexts
 
 **TypeScript**:
 - Check for `any` types (should be avoided)
-- Verify ESLint passes
+- **MUST verify:** `npm run lint` or `eslint .` passes with zero errors
 - Check for proper type safety
 
 **Python**:
 - Check for type hints on public functions
-- Verify pytest passes
+- **MUST verify:** `pylint` or `flake8` passes with acceptable score
 - Check for proper exception handling
 
 ## Completion Checklist
 
 Before finishing, verify YOU have done ALL of these:
 
+- [ ] ✅ **RAN compilation check** (go build, npm run build, etc.)
+- [ ] ✅ **RAN tests** (go test, npm test, pytest)
+- [ ] ✅ **RAN linter** (golangci-lint run, eslint, pylint)
+- [ ] ✅ **CHECKED coverage** (>80% required)
 - [ ] ✅ Created directory: `.ai/implementation/tasks/<task-id>/iteration-N/`
 - [ ] ✅ Created file: `.ai/implementation/tasks/<task-id>/iteration-N/review.md`
 - [ ] ✅ Wrote review using the required format
+- [ ] ✅ Documented all automated check results (compilation, tests, linting, coverage)
 - [ ] ✅ Set status: APPROVED, NEEDS_REVISION, or BLOCKED
 - [ ] ✅ Documented all issues found (if any)
 - [ ] ✅ Provided specific required changes (if NEEDS_REVISION)

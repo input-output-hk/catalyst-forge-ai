@@ -91,9 +91,74 @@ This file documents what you did. Create it at the path shown above.
 
 4. **Validate**
    - Run tests
-   - Run linter
+   - Run linter (see commands below)
    - Check coverage
    - Verify all acceptance criteria met
+
+**Language-Specific Validation Commands:**
+
+**Go:**
+```bash
+# Run tests
+go test ./...
+
+# Run linter (REQUIRED)
+golangci-lint run
+
+# Check coverage
+go test -cover ./...
+```
+
+**TypeScript:**
+```bash
+# Run tests
+npm test
+
+# Run linter (REQUIRED)
+npm run lint
+# or
+eslint .
+
+# Check coverage
+npm run test:coverage
+```
+
+**Python:**
+```bash
+# Run tests
+pytest
+
+# Run linter (REQUIRED)
+pylint **/*.py
+# or
+flake8 .
+
+# Check coverage
+pytest --cov
+```
+
+**Exception: Linting Failures**
+
+If the linter fails with errors that you cannot fix immediately:
+- **You may proceed** IF there is a valid, documented reason
+- **You MUST document** the linting failures in your implementation notes
+- **You MUST explain** why the failures exist and when they will be resolved
+
+Example valid reasons:
+- Future task will complete the implementation (e.g., unused import needed for next task)
+- Intentional deviation from style guide with architectural justification
+- Known linter bug or false positive
+
+**In your notes.md, document it clearly:**
+```markdown
+## Linting
+- Status: FAILED (intentionally)
+- Command: golangci-lint run
+- Errors: 2 errors
+  - unused variable 'foo' in parser.go:123 - will be used in task 003
+  - unused import 'crypto' in types.go:5 - needed for task 004 encryption
+- Justification: These are forward declarations for upcoming tasks
+```
 
 5. **Document**
    - Create implementation notes
@@ -152,8 +217,11 @@ If you encounter a blocker (e.g., missing dependency, unclear spec):
 Before considering task complete:
 
 - [ ] Code compiles without errors
-- [ ] All tests pass
-- [ ] Linting passes
+- [ ] All tests pass (run language-specific test command)
+- [ ] **Linting passes** (run language-specific linter command)
+  - Go: `golangci-lint run` must pass with no errors
+  - TypeScript: `npm run lint` or `eslint .` must pass
+  - Python: `pylint` or `flake8` must pass
 - [ ] Test coverage meets threshold (>80%)
 - [ ] All acceptance criteria from task spec met
 - [ ] No hardcoded values (use config/constants)
@@ -170,8 +238,8 @@ Before finishing, verify YOU have done ALL of these:
 - [ ] ✅ Documented all files changed in notes.md
 - [ ] ✅ Documented design decisions in notes.md
 - [ ] ✅ Included test results in notes.md
-- [ ] ✅ All tests passing
-- [ ] ✅ All linting passing
+- [ ] ✅ **RAN and PASSED all tests** (go test, npm test, pytest)
+- [ ] ✅ **RAN and PASSED linter** (golangci-lint run, eslint, pylint)
 
 **Then output:**
 1. Summary of files changed
