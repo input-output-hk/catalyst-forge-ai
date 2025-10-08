@@ -36,12 +36,20 @@ func main() {
 			os.Exit(1)
 		}
 	case "new":
-		if err := runNew(); err != nil {
+		projectPath := "."
+		if len(os.Args) > 2 {
+			projectPath = os.Args[2]
+		}
+		if err := runNew(projectPath); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	case "start":
-		if err := runStart(); err != nil {
+		projectPath := "."
+		if len(os.Args) > 2 {
+			projectPath = os.Args[2]
+		}
+		if err := runStart(projectPath); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -58,10 +66,14 @@ func printUsage() {
 	fmt.Println(`catalyst-ai - Multi-agent system for building Catalyst Forge platform components
 
 Usage:
-  catalyst-ai init        Clone and cache catalyst-forge-ai repository
-  catalyst-ai new         Initialize AI workspace in current directory
-  catalyst-ai start       Launch orchestrator agent
-  catalyst-ai help        Show this help message
+  catalyst-ai init              Clone and cache catalyst-forge-ai repository
+  catalyst-ai new [path]        Initialize AI workspace at path (default: current directory)
+  catalyst-ai start [path]      Launch orchestrator for project at path (default: current directory)
+  catalyst-ai help              Show this help message
+
+Examples:
+  catalyst-ai new projects/my-lib        Create .ai workspace at projects/my-lib/.ai
+  catalyst-ai start projects/my-lib      Start orchestrator for projects/my-lib
 
 Requirements:
   - git (for repository operations)
@@ -89,6 +101,16 @@ func getCacheDir() (string, error) {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 	return filepath.Join(home, cacheDir), nil
+}
+
+// getGitRepoRoot finds the git repository root starting from the given path
+func getGitRepoRoot(startPath string) (string, error) {
+	cmd := exec.Command("git", "-C", startPath, "rev-parse", "--show-toplevel")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("not in a git repository or git command failed")
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func runInit() error {
@@ -173,17 +195,23 @@ func runInit() error {
 	return nil
 }
 
-func runNew() error {
-	cwd, err := os.Getwd()
+func runNew(projectPath string) error {
+	// Convert to absolute path
+	absProjectPath, err := filepath.Abs(projectPath)
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
+		return fmt.Errorf("failed to resolve project path: %w", err)
 	}
 
-	aiDir := filepath.Join(cwd, ".ai")
+	// Create project directory if it doesn't exist
+	if err := os.MkdirAll(absProjectPath, 0755); err != nil {
+		return fmt.Errorf("failed to create project directory: %w", err)
+	}
+
+	aiDir := filepath.Join(absProjectPath, ".ai")
 
 	// Check if .ai/ already exists
 	if _, err := os.Stat(aiDir); err == nil {
-		return fmt.Errorf(".ai/ directory already exists in current directory")
+		return fmt.Errorf(".ai/ directory already exists at %s", absProjectPath)
 	}
 
 	// Get cache directory
@@ -234,13 +262,17 @@ func runNew() error {
 		return fmt.Errorf("failed to remove template file: %w", err)
 	}
 
-	fmt.Println("✓ Created .ai/ workspace")
+	fmt.Printf("✓ Created .ai/ workspace at %s\n", absProjectPath)
 	fmt.Printf("✓ Copied templates from %s\n", cacheDir)
 	fmt.Println("\nNext steps:")
-	fmt.Println("1. (Optional) Add context files to .ai/context/")
+	fmt.Printf("1. (Optional) Add context files to %s/.ai/context/\n", absProjectPath)
 	fmt.Println("2. Start the orchestrator:")
 	fmt.Println()
-	fmt.Println("   catalyst-ai start")
+	if projectPath == "." {
+		fmt.Println("   catalyst-ai start")
+	} else {
+		fmt.Printf("   catalyst-ai start %s\n", projectPath)
+	}
 
 	return nil
 }
@@ -301,19 +333,25 @@ func copyFile(src, dst string) error {
 	return os.Chmod(dst, sourceInfo.Mode())
 }
 
-func runStart() error {
-	cwd, err := os.Getwd()
+func runStart(projectPath string) error {
+	// Convert to absolute path
+	absProjectPath, err := filepath.Abs(projectPath)
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
+		return fmt.Errorf("failed to resolve project path: %w", err)
 	}
 
-	aiDir := filepath.Join(cwd, ".ai")
+	// Check if project directory exists
+	if _, err := os.Stat(absProjectPath); os.IsNotExist(err) {
+		return fmt.Errorf("project directory does not exist: %s", absProjectPath)
+	}
+
+	aiDir := filepath.Join(absProjectPath, ".ai")
 	stateFile := filepath.Join(aiDir, "state.yml")
 	orchestratorGuide := filepath.Join(aiDir, "guides", "ORCHESTRATOR.md")
 
 	// Check if .ai/ exists
 	if _, err := os.Stat(aiDir); os.IsNotExist(err) {
-		return fmt.Errorf(".ai/ directory not found. Run 'catalyst-ai new' first")
+		return fmt.Errorf(".ai/ directory not found at %s. Run 'catalyst-ai new %s' first", absProjectPath, projectPath)
 	}
 
 	// Check if state.yml exists
@@ -344,7 +382,21 @@ func runStart() error {
 		}
 	}
 
+	// Find git repository root
+	repoRoot, err := getGitRepoRoot(absProjectPath)
+	if err != nil {
+		return fmt.Errorf("failed to find git repository root: %w", err)
+	}
+
+	// Calculate relative path from repo root to project
+	relProjectPath, err := filepath.Rel(repoRoot, absProjectPath)
+	if err != nil {
+		return fmt.Errorf("failed to calculate relative path: %w", err)
+	}
+
 	fmt.Println("Launching orchestrator...")
+	fmt.Printf("Repository root: %s\n", repoRoot)
+	fmt.Printf("Project path: %s (relative to repo root)\n", relProjectPath)
 	fmt.Printf("Current phase: %s\n\n", currentPhase)
 
 	// Build the claude command
@@ -354,9 +406,24 @@ func runStart() error {
 		return fmt.Errorf("failed to read orchestrator guide: %w", err)
 	}
 
+	// Build initial prompt with project context
+	initialPrompt := fmt.Sprintf(`Resume work based on current state in .ai/state.yml
+
+Project context:
+- Repository root: %s
+- Project path (relative to repo root): %s
+- Project absolute path: %s
+- Current phase: %s
+
+The .ai/ workspace is located at: %s/.ai/
+`, repoRoot, relProjectPath, absProjectPath, currentPhase, absProjectPath)
+
 	cmd := exec.Command("claude",
 		"--append-system-prompt", string(orchestratorContent),
-		"Resume work based on current state in .ai/state.yml")
+		initialPrompt)
+
+	// Change to project directory so relative paths work correctly
+	cmd.Dir = absProjectPath
 
 	// Connect stdin/stdout/stderr so user can interact
 	cmd.Stdin = os.Stdin
