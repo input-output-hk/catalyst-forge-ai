@@ -77,43 +77,50 @@ After each phase:
 
 ## Agent Delegation Strategy
 
-You have access to both **internal Task tool** and **external CLI tools** (`claude`, `cursor-agent`).
+Use the `catalyst-ai run` command to invoke specialized agents. This command handles:
+- Template variable substitution
+- Working directory setup
+- Agent guide loading
+- CLI tool selection (claude vs cursor-agent)
 
-### When to Use Internal Task Tool
+### Agent Invocation Commands
 
-Use your internal `Task` tool (with `general-purpose` subagent) for:
-- **PLANNER**: Task breakdown and planning
-- **REVIEWER**: Code review and validation
-- Any other reasoning or analysis tasks
-
-Example:
-```
-Use Task tool with:
-- subagent_type: "general-purpose"
-- description: "Create implementation plan"
-- prompt: "You are the PLANNER agent. Read .ai/guides/PLANNER.md and create an implementation plan based on .ai/design/DESIGN.md"
-```
-
-### When to Use External CLI Tools
-
-**CRITICAL**: Use `cursor-agent` CLI (via Bash tool) for:
-- **CODER**: Code implementation ONLY
-
-**DO NOT use internal Task tool for code implementation**. The CODER must run via `cursor-agent`:
-
+**PLANNER**:
 ```bash
-cursor-agent --system "$(cat .ai/guides/CODER.md)" "Implement task <task-id> from .ai/planning/tasks/<task-id>.md"
+catalyst-ai run planner project=.
 ```
 
-### Summary
+**CODER**:
+```bash
+catalyst-ai run coder task_id=001 project=.
+```
 
-| Agent | Tool | Method |
-|-------|------|--------|
-| PLANNER | Internal | Task tool (general-purpose) |
-| CODER | **External** | **Bash: cursor-agent CLI** |
-| REVIEWER | Internal | Task tool (general-purpose) |
+**REVIEWER**:
+```bash
+catalyst-ai run reviewer task_id=001 project=.
+```
 
-**Why?** `cursor-agent` is optimized for code generation. Always use it for CODER agent invocations.
+### Template Variables
+
+Common variables available in all agents:
+- `project` - Project path (absolute or relative, defaults to current directory)
+- `task_id` - Task identifier (required for coder and reviewer)
+
+The CLI automatically provides:
+- Repository root path
+- Relative project path
+- .ai/ workspace location
+- Task-specific context
+
+### Which CLI Tool Is Used?
+
+The `catalyst-ai run` command automatically selects the correct CLI tool:
+
+| Agent | CLI Tool | Why |
+|-------|----------|-----|
+| PLANNER | claude | Reasoning and analysis |
+| CODER | **cursor-agent** | Optimized for code generation |
+| REVIEWER | claude | Code review and validation |
 
 ## Error Handling
 

@@ -13,24 +13,38 @@ You are executing the IMPLEMENTATION phase. Coordinate CODER and REVIEWER agents
 
 ### 2. Implement (via CODER)
 
-**CRITICAL**: Use `cursor-agent` CLI via the Bash tool. **DO NOT use internal Task tool for code implementation.**
-
 ```bash
-cursor-agent --system "$(cat .ai/guides/CODER.md)" "Implement task <task-id> from .ai/planning/tasks/<task-id>.md"
+catalyst-ai run coder task_id=<task-id> project=.
 ```
 
-Why cursor-agent? It's optimized for code generation and provides better code quality than general-purpose agents.
+Example for task 001:
+```bash
+catalyst-ai run coder task_id=001 project=.
+```
+
+The coder will:
+- Read task spec from `.ai/planning/tasks/<task-id>.md`
+- Implement the code
+- Create implementation notes at `.ai/implementation/tasks/<task-id>/notes.md`
+
+**Note**: This automatically uses `cursor-agent` which is optimized for code generation.
 
 ### 3. Review (via REVIEWER)
 
-Use your internal **Task tool** with the `general-purpose` subagent:
+```bash
+catalyst-ai run reviewer task_id=<task-id> project=.
+```
 
+Example for task 001:
+```bash
+catalyst-ai run reviewer task_id=001 project=.
 ```
-Task tool invocation:
-- subagent_type: "general-purpose"
-- description: "Review task <task-id> implementation"
-- prompt: "You are the REVIEWER agent. Read .ai/guides/REVIEWER.md for your role definition, then review the implementation of task <task-id>. Check the task specification at .ai/planning/tasks/<task-id>.md and the implementation notes at .ai/implementation/tasks/<task-id>/notes.md. Output your review following the format specified in the guide."
-```
+
+The reviewer will:
+- Check task specification
+- Review implementation
+- Run automated checks (compilation, tests, linting)
+- Output review to `.ai/implementation/tasks/<task-id>/iteration-N/review.md`
 
 ### 4. Handle Review Results
 

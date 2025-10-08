@@ -53,6 +53,25 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "run":
+		if len(os.Args) < 3 {
+			fmt.Fprintf(os.Stderr, "Error: 'run' command requires an agent name\n\n")
+			printUsage()
+			os.Exit(1)
+		}
+		agentName := os.Args[2]
+		// Collect remaining args as key=value pairs
+		args := make(map[string]string)
+		for i := 3; i < len(os.Args); i++ {
+			parts := strings.SplitN(os.Args[i], "=", 2)
+			if len(parts) == 2 {
+				args[parts[0]] = parts[1]
+			}
+		}
+		if err := runAgent(agentName, args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -69,11 +88,20 @@ Usage:
   catalyst-ai init              Clone and cache catalyst-forge-ai repository
   catalyst-ai new [path]        Initialize AI workspace at path (default: current directory)
   catalyst-ai start [path]      Launch orchestrator for project at path (default: current directory)
+  catalyst-ai run <agent> [key=value...]  Run a specific agent with template variables
   catalyst-ai help              Show this help message
 
 Examples:
-  catalyst-ai new projects/my-lib        Create .ai workspace at projects/my-lib/.ai
-  catalyst-ai start projects/my-lib      Start orchestrator for projects/my-lib
+  catalyst-ai new projects/my-lib                   Create .ai workspace at projects/my-lib/.ai
+  catalyst-ai start projects/my-lib                 Start orchestrator for projects/my-lib
+  catalyst-ai run planner project=libs/auth         Run planner agent for libs/auth
+  catalyst-ai run coder task_id=001 project=.       Run coder agent for task 001
+  catalyst-ai run reviewer task_id=001 project=.    Run reviewer agent for task 001
+
+Available Agents:
+  planner       Break down design into executable tasks
+  coder         Implement a specific task
+  reviewer      Review implementation of a task
 
 Requirements:
   - git (for repository operations)
