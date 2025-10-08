@@ -1,5 +1,5 @@
-# Binaries
-catalyst-ai
+# Binaries (only at root, not in cmd/)
+/catalyst-ai
 *.exe
 *.dll
 *.so

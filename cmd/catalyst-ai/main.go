@@ -355,7 +355,7 @@ func runStart() error {
 	}
 
 	cmd := exec.Command("claude",
-		"--system", string(orchestratorContent),
+		"--append-system-prompt", string(orchestratorContent),
 		"Resume work based on current state in .ai/state.yml")
 
 	// Connect stdin/stdout/stderr so user can interact
