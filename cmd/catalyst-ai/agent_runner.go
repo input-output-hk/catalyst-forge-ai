@@ -109,22 +109,32 @@ func runAgent(agentName string, args map[string]string) error {
 	initialPrompt := promptBuf.String()
 
 	// Build agent-specific context
-	contextPrompt := fmt.Sprintf(`
-Project Context:
+	contextPrompt := fmt.Sprintf(`Project Context:
 - Repository root: %s
 - Project path (relative to repo root): %s
 - Project absolute path: %s
 - .ai/ workspace: %s
-
 `, repoRoot, relProjectPath, absProjectPath, aiDir)
 
 	// Add task-specific context if applicable
 	if taskID, ok := args["task_id"]; ok {
-		contextPrompt += fmt.Sprintf("Task ID: %s\n", taskID)
+		contextPrompt += fmt.Sprintf("- Task ID: %s\n", taskID)
 	}
 
-	// Combine context and initial prompt
-	fullPrompt := contextPrompt + initialPrompt
+	// Build full prompt differently for cursor-agent vs claude
+	var fullPrompt string
+	if agentCLI == "cursor-agent" {
+		// cursor-agent: Combine guide + context + prompt into single prompt
+		// (no separate system prompt support)
+		fullPrompt = fmt.Sprintf(`%s
+
+%s
+
+%s`, string(guideContent), contextPrompt, initialPrompt)
+	} else {
+		// claude: Context + prompt (guide goes in system prompt)
+		fullPrompt = contextPrompt + "\n" + initialPrompt
+	}
 
 	fmt.Printf("Running %s agent...\n", agentName)
 	fmt.Printf("Project: %s\n", relProjectPath)
@@ -136,9 +146,18 @@ Project Context:
 	// Invoke agent CLI
 	var cmd *exec.Cmd
 	if agentCLI == "cursor-agent" {
-		cmd = exec.Command(agentCLI, "--system", string(guideContent), fullPrompt)
+		// cursor-agent only takes positional prompt argument
+		// Guide content is embedded in the prompt itself
+		cmd = exec.Command(agentCLI,
+			"--force",
+			"--print",
+			"--model", "claude-sonnet-4-5",
+			fullPrompt)
 	} else {
-		cmd = exec.Command(agentCLI, "--append-system-prompt", string(guideContent), fullPrompt)
+		// claude supports separate system prompt
+		cmd = exec.Command(agentCLI,
+			"--append-system-prompt", string(guideContent),
+			fullPrompt)
 	}
 
 	// Set working directory to project path
