@@ -156,7 +156,7 @@ func runAgent(agentName string, args map[string]string) error {
 	} else {
 		// claude supports separate system prompt
 		cmd = exec.Command(agentCLI,
-			"--bypassPermissions",
+			"--permission-mode", "bypassPermissions",
 			"--print",
 			"--append-system-prompt", string(guideContent),
 			fullPrompt)
