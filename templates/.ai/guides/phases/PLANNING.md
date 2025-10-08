@@ -7,8 +7,14 @@ You are executing the PLANNING phase. Delegate to the PLANNER agent to break dow
 ## Process
 
 1. **Invoke PLANNER Agent**
-   ```bash
-   claude --system "$(cat .ai/guides/PLANNER.md)" "Create implementation plan based on design document"
+
+   Use your internal **Task tool** with the `general-purpose` subagent:
+
+   ```
+   Task tool invocation:
+   - subagent_type: "general-purpose"
+   - description: "Create implementation plan"
+   - prompt: "You are the PLANNER agent. Read .ai/guides/PLANNER.md for your role definition, then create an implementation plan based on .ai/design/DESIGN.md and .ai/discovery/DISCOVERY.md. Output the roadmap and task files as specified in the guide."
    ```
 
 2. **Review Output**

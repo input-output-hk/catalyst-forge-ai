@@ -75,22 +75,45 @@ After each phase:
 5. **Keep state current** - Update state.yml after every significant action
 6. **Handle blockers** - If blocked, update state and escalate to human
 
-## Agent Invocation Commands
+## Agent Delegation Strategy
 
-**PLANNER**:
-```bash
-claude --system "$(cat .ai/guides/PLANNER.md)" "Create plan from .ai/design/DESIGN.md"
+You have access to both **internal Task tool** and **external CLI tools** (`claude`, `cursor-agent`).
+
+### When to Use Internal Task Tool
+
+Use your internal `Task` tool (with `general-purpose` subagent) for:
+- **PLANNER**: Task breakdown and planning
+- **REVIEWER**: Code review and validation
+- Any other reasoning or analysis tasks
+
+Example:
+```
+Use Task tool with:
+- subagent_type: "general-purpose"
+- description: "Create implementation plan"
+- prompt: "You are the PLANNER agent. Read .ai/guides/PLANNER.md and create an implementation plan based on .ai/design/DESIGN.md"
 ```
 
-**CODER**:
+### When to Use External CLI Tools
+
+**CRITICAL**: Use `cursor-agent` CLI (via Bash tool) for:
+- **CODER**: Code implementation ONLY
+
+**DO NOT use internal Task tool for code implementation**. The CODER must run via `cursor-agent`:
+
 ```bash
 cursor-agent --system "$(cat .ai/guides/CODER.md)" "Implement task <task-id> from .ai/planning/tasks/<task-id>.md"
 ```
 
-**REVIEWER**:
-```bash
-claude --system "$(cat .ai/guides/REVIEWER.md)" "Review implementation of task <task-id>"
-```
+### Summary
+
+| Agent | Tool | Method |
+|-------|------|--------|
+| PLANNER | Internal | Task tool (general-purpose) |
+| CODER | **External** | **Bash: cursor-agent CLI** |
+| REVIEWER | Internal | Task tool (general-purpose) |
+
+**Why?** `cursor-agent` is optimized for code generation. Always use it for CODER agent invocations.
 
 ## Error Handling
 
