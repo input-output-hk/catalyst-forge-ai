@@ -151,7 +151,7 @@ func runAgent(agentName string, args map[string]string) error {
 		cmd = exec.Command(agentCLI,
 			"--force",
 			"--print",
-			"--model", "claude-sonnet-4-5",
+			"--model", "sonnet-4.5",
 			fullPrompt)
 	} else {
 		// claude supports separate system prompt
